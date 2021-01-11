@@ -2,7 +2,7 @@ var vehicles = [];
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
-    template:  '<span style="font-size:1em">{{ currentTime }}</span>',
+    template:  '<object  style="width:100%; height:100%; pointer-events: none" type="image/svg+xml" data="modules/apps/RaceTicker/bg+.svg"></object>',
     replace: true,
     restrict: 'EA',
     link: function (scope, element, attrs) {      

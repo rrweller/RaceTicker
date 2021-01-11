@@ -6,8 +6,8 @@
   "directive": "raceTicker",
   "domElement": "<race-ticker></race-ticker>",
   "css": { 
-	"width": "200px", 
-	"height": "400px", 
+	"width": "400px", 
+	"height": "800px", 
 	"top": "200px", 
 	"left": "200px" },   
   "preserveAspectRatio" : true
