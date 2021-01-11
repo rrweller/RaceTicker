@@ -1,3 +1,4 @@
+var vehicles = [];
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
@@ -24,8 +25,17 @@ angular.module('beamng.apps')
 						//console.log("Vehicle ID: " + veh_id + ", Time: " + scriptTime);
 						
 						outputText = outputText + "id: " + veh_id + ", progress: " + scriptPercent;
+						
 						//scope.currentTime = value;
 						
+						//adds id and scriptTime to vehicles array
+						if(vehicles.some(vehicle => vehicle.id === veh_id)){
+							vehIndex = vehicles.findIndex((vehicle => vehicle.id === veh_id));
+							vehicles[vehIndex].time = value.scriptTime;
+						} else{
+							let vehicle = {"id":veh_id,"time":value.scriptTime};
+								vehicles.push(vehicle);
+							} 
 					}
 					scope.currentTime = outputText;
 				});
