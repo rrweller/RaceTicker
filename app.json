@@ -1,6 +1,6 @@
 {
-  "name" : "My App",
-  "author": "Me",
+  "name" : "RaceTicker",
+  "author": "Keudn",
   "version": "0.1",
   "description": "Just a tutorial app",
   "directive": "myApp",
