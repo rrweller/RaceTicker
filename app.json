@@ -5,5 +5,10 @@
   "description": "Just a tutorial app",
   "directive": "raceTicker",
   "domElement": "<race-ticker></race-ticker>",
-  "css": { "width": "150px", "height": "150px", "top": "200px", "left": "200px" }   
+  "css": { 
+	"width": "200px", 
+	"height": "400px", 
+	"top": "200px", 
+	"left": "200px" },   
+  "preserveAspectRatio" : true
 }
