@@ -1,5 +1,5 @@
 angular.module('beamng.apps')
-.directive('RaceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
+.directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  '<span style="font-size:1em">{{ currentTime }}</span>',
     replace: true,

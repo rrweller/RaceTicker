@@ -3,7 +3,7 @@
   "author": "Keudn",
   "version": "0.1",
   "description": "Just a tutorial app",
-  "directive": "myApp",
-  "domElement": "<my-app></my-app>",
+  "directive": "raceTicker",
+  "domElement": "<race-ticker></race-ticker>",
   "css": { "width": "150px", "height": "150px", "top": "200px", "left": "200px" }   
 }
