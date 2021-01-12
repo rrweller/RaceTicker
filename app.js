@@ -1,10 +1,11 @@
 var vehicles = [];
+var vehiclesSorted = [];
+var leaderboardFormatted= "start line to start leaderboard";
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		'<span style="font-size:1em">{{ currentTime }}</span>',
-		'<object  style="width:100%; height:100%; pointer-events: none" type="image/svg+xml" data="modules/apps/RaceTicker/bg+.svg"></object>',
+		'<p id="leaderboard"></p>',
     replace: true,
     restrict: 'EA',
     link: function (scope, element, attrs) {      
@@ -14,9 +15,6 @@ angular.module('beamng.apps')
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
 				bngApi.engineLua('be:queueAllObjectLua("obj:queueGameEngineLua(\'script_state_table[\'..obj:getID() .. \'] = \' .. serialize(ai.scriptState()))")');
-			   
-			   
-				var outputText = "";
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {
 					for (const [key, value] of Object.entries(data)) {
@@ -25,10 +23,6 @@ angular.module('beamng.apps')
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100
 					 
 						//console.log("Vehicle ID: " + veh_id + ", Time: " + scriptTime);
-						
-						outputText = outputText + "id: " + veh_id + ", progress: " + scriptPercent;
-						
-						//scope.currentTime = value;
 						
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){
@@ -39,13 +33,16 @@ angular.module('beamng.apps')
 								vehicles.push(vehicle);
 							} 
 					}
-					scope.currentTime = outputText;
 				});
-				
+				//formatting information for leaderboard
+				let vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
+				var i;
+				leaderboardFormatted= "";
+				for (i = 0; i < vehiclesSorted.length; i++) {
+					leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].id + "<br>";
+				}
+				document.getElementById("leaderboard").innerHTML = leaderboardFormatted;	
 		});
-
-		
-		//scope.currentTime = "2";
     }
   };
 }])
