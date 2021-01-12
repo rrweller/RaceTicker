@@ -1,6 +1,6 @@
 var vehicles = [];
 var vehiclesSorted = [];
-var leaderboardFormatted= "start line to start leaderboard";
+var leaderboardFormatted= "Start line to start leaderboard";
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
@@ -31,7 +31,6 @@ angular.module('beamng.apps')
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
 								vehicles[vehIndex].name = name;
-								console.log(name);
 							});
 						} else{
 							let vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown"};
@@ -40,7 +39,7 @@ angular.module('beamng.apps')
 					}	
 				});
 		//formatting information for leaderboard
-		let vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
+		vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 		var i;
 		if (vehicles.length > 0) {
 			leaderboardFormatted= "";
