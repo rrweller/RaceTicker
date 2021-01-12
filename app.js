@@ -28,15 +28,15 @@ angular.module('beamng.apps')
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){
 							vehIndex = vehicles.findIndex((vehicle => vehicle.id === veh_id));
 							vehicles[vehIndex].time = value.scriptTime;
-						} else{
 							//reading in the vehicles name from Beamng Engine Lua
-							var veh_name = "test";
+							var veh_name = "";
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
 								veh_name = name;
-								console.log(veh_name)
-								let vehicle = {"id":veh_id,"time":value.scriptTime,"name":veh_name};
-								vehicles.push(vehicle);
+								vehicles[vehIndex].name = veh_name;
 							})
+						} else{
+							let vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown"};
+							vehicles.push(vehicle);
 						}
 					}	
 				})
