@@ -26,20 +26,19 @@ angular.module('beamng.apps')
 						
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){
-							vehIndex = vehicles.findIndex((vehicle => vehicle.id === veh_id));
+							let vehIndex = vehicles.findIndex((vehicle => vehicle.id === veh_id));
 							vehicles[vehIndex].time = value.scriptTime;
 							//reading in the vehicles name from Beamng Engine Lua
-							var veh_name = "";
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
-								veh_name = name;
-								vehicles[vehIndex].name = veh_name;
-							})
+								vehicles[vehIndex].name = name;
+								console.log(name);
+							});
 						} else{
 							let vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown"};
 							vehicles.push(vehicle);
 						}
 					}	
-				})
+				});
 		//formatting information for leaderboard
 		let vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 		var i;
