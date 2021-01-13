@@ -1,7 +1,16 @@
+//config
+//these remove the car from the leaderboard
+var errorTolerance= 20; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
+var errorCounterSensitivity = 10; //how quickly a car gets yeeted when it goes off line, lower values = quicker
+//these pause the position of the car
+var timeoutAmount = 50; // how long a car stays timed out after going off line
+var timeIncreaseThreshold = 20; // how much a car needs to jump in scriptTime to be considered off line
+//end config
+
 var vehicles = [];
+var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
-
 
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
@@ -23,19 +32,29 @@ angular.module('beamng.apps')
 				
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {	
-				setPlayingFalse();
+					setPlayingFalse();
 					for (const [key, value] of Object.entries(data)) {
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
-												
+						var lineError = Math.abs(value.posError);
+						var averageLineError= 0;
+						var ScriptTimeIncrease= 0;	
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array 
-							getVehicleByID(veh_id).time = value.scriptTime;
-							getVehicleByID(veh_id).playing = "true"; //if the vehicle is still playing on line .playing gets set to true
+							if (averageLineError>errorTolerance) {
+								getVehicleByID(veh_id).playing = "false"; //if the vehicle crashed, delete it
+							} else {
+								averageLineError = (errorCounterSensitivity*averageLineError+lineError)/11;
+								ScriptTimeIncrease = value.scriptTime-getVehicleByID(veh_id).lastScriptTime;
+								getVehicleByID(veh_id).time = value.scriptTime;
+								getVehicleByID(veh_id).playing = "true"; //if the vehicle is still playing on line .playing gets set to true
+								getVehicleByID(veh_id).ScriptTimeIncrease = ScriptTimeIncrease;
+								getVehicleByID(veh_id).lastScriptTime= value.scriptTime;
+							}
 						}
 
-						else{//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true"};
+						else if (averageLineError<errorTolerance) {//if this vehicle is new
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false"};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
@@ -45,8 +64,28 @@ angular.module('beamng.apps')
 					}	
 				});
 				removeIdleVehicle();
+				// manages vehicles maintaining their position for some time when going off-line
+				tempVehicles=vehicles;
+				var i;
+				for (i = 0; i < tempVehicles.length; i++) {
+					if (tempVehicles[i].ScriptTimeIncrease > timeIncreaseThreshold) {
+						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == "false") {
+							console.log("paused ScriptTime Increasing");
+							vehicles[i].storedScriptTime = vehicles[i].lastScriptTime;
+							vehicles[i].scriptTimePausedTimeout = timeoutAmount;
+							vehicles[i].paused = "true";
+						}
+						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == "true") {
+							vehicles[i].paused = "false";
+						}
+						if (vehicles[i].scriptTimePausedTimeout > 0 & vehicles[i].paused == "true") {
+							tempVehicles[i].time = vehicles[i].storedScriptTime;
+							vehicles[i].scriptTimePausedTimeout = vehicles[i].scriptTimePausedTimeout-1;
+						}
+					}
+				}
 				//formatting information for leaderboard
-				vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
+				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
 					leaderboardFormatted= "";
 				}
