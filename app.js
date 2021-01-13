@@ -54,17 +54,13 @@ angular.module('beamng.apps')
 				});
 				//removes vehicles from array if they do not have .playing = true
 				var i;
-				if (vehicles.length > 1){
+				if (vehicles.length > 0){
 					for (i = 0; i < vehicles.length; i++) {
 						if (vehicles[i].playing == "false"){
 							vehicles.splice(i,1);
+							leaderboardFormatted= "Start line to start leaderboard";
 						}
 					}
-				} else if (vehicles.length == 1) {
-					if (vehicles[0].playing == "false"){
-						vehicles=[];
-						leaderboardFormatted= "Start line to start leaderboard";
-					}	
 				}
 				//formatting information for leaderboard
 				vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
