@@ -22,16 +22,8 @@ angular.module('beamng.apps')
 				bngApi.engineLua('be:queueAllObjectLua("obj:queueGameEngineLua(\'script_state_table[\'..obj:getID() .. \'] = \' .. serialize(ai.scriptState()))")');
 				
 				//This gets that script_state_table from GameEngine Lua
-				bngApi.engineLua('script_state_table', function(data) {
-					var i;
-					if (vehicles.length > 0) {
-						for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
-							if (vehicles[i].playing == "true"){
-								vehicles[i].playing = "false";
-							}
-						}
-					}
-					
+				bngApi.engineLua('script_state_table', function(data) {	
+				setPlayingFalse();
 					for (const [key, value] of Object.entries(data)) {
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
@@ -52,16 +44,7 @@ angular.module('beamng.apps')
 						}
 					}	
 				});
-				//removes vehicles from array if they do not have .playing = true
-				var i;
-				if (vehicles.length > 0){
-					for (i = 0; i < vehicles.length; i++) {
-						if (vehicles[i].playing == "false"){
-							vehicles.splice(i,1);
-							leaderboardFormatted= "Start line to start leaderboard";
-						}
-					}
-				}
+				removeIdleVehicle();
 				//formatting information for leaderboard
 				vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
@@ -85,4 +68,29 @@ angular.module('beamng.apps')
  function getVehicleByID(id){
 	let index = vehicles.findIndex((vehicle => vehicle.id === id));
 	return vehicles[index]
+}
+
+//sets all .playing values to false
+function setPlayingFalse(){
+	var i;
+	if (vehicles.length > 0) {
+		for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
+			if (vehicles[i].playing == "true"){
+				vehicles[i].playing = "false";
+			}
+		}
+	}
+}
+
+//removes vehicles from array if they do not have .playing = true
+function removeIdleVehicle() {
+	var i;
+	if (vehicles.length > 0){
+	for (i = 0; i < vehicles.length; i++) {
+		if (vehicles[i].playing == "false"){
+				vehicles.splice(i,1);
+				leaderboardFormatted= "Start line to start leaderboard";
+			}
+		}
+	}
 }
