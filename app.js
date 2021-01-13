@@ -44,7 +44,7 @@ angular.module('beamng.apps')
 						}
 					}	
 				});
-				removeIdleVehicle();
+				removeIdleVehicles();
 				//formatting information for leaderboard
 				vehiclesSorted = vehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
@@ -83,7 +83,7 @@ function setPlayingFalse(){
 }
 
 //removes vehicles from array if they do not have .playing = true
-function removeIdleVehicle() {
+function removeIdleVehicles() {
 	var i;
 	if (vehicles.length > 0){
 	for (i = 0; i < vehicles.length; i++) {
