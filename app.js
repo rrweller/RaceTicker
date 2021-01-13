@@ -33,7 +33,7 @@ angular.module('beamng.apps')
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100
 												
 						//adds id and scriptTime to vehicles array
-						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the arry 
+						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array 
 							getVehicleByID(veh_id).time = value.scriptTime;
 						}
 
