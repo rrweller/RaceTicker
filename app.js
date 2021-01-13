@@ -55,9 +55,9 @@ angular.module('beamng.apps')
 				//removes vehicles from array if they do not have .playing = true
 				var i;
 				if (vehicles.length > 1){
-					for (i = ´0; i < vehicles.length; i++) {
+					for (i = 0; i < vehicles.length; i++) {
 						if (vehicles[i].playing == "false"){
-							delete vehicles[i];
+							vehicles.splice(i,1);
 						}
 					}
 				} else if (vehicles.length == 1) {
