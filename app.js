@@ -1,6 +1,13 @@
 var vehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
+
+//returns a vehicle with a given ID
+ function getVehicleByID(id){
+	let index = vehicles.findIndex((vehicle => vehicle.id === id));
+	return vehicles[index]
+}
+
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
@@ -13,6 +20,7 @@ angular.module('beamng.apps')
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		
+			
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -21,20 +29,21 @@ angular.module('beamng.apps')
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {
 					for (const [key, value] of Object.entries(data)) {
-						var veh_id = key;
+						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100
-						
+												
 						//adds id and scriptTime to vehicles array
-						if(vehicles.some(vehicle => vehicle.id === veh_id)){
-							let vehIndex = vehicles.findIndex((vehicle => vehicle.id === veh_id));
-							vehicles[vehIndex].time = value.scriptTime;
+						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the arry 
+							getVehicleByID(veh_id).time = value.scriptTime;
+						}
+
+						else{//if this vehicle is new
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown"};
+							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
-								vehicles[vehIndex].name = name;
+								getVehicleByID(veh_id).name = name;//add the name of the new vehicle
 							});
-						} else{
-							let vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown"};
-							vehicles.push(vehicle);
 						}
 					}	
 				});
@@ -47,7 +56,9 @@ angular.module('beamng.apps')
 		for (i = 0; i < vehiclesSorted.length; i++) {
 				leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + "<br>";
 		}
-		document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
+		document.getElementById("leaderboard").innerHTML = leaderboardFormatted; 
+
+		
 		});
 	}
 	
