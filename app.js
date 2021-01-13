@@ -63,7 +63,7 @@ angular.module('beamng.apps')
 						}
 					}	
 				});
-				removeIdleVehicle();
+				removeIdleVehicles();
 				// manages vehicles maintaining their position for some time when going off-line
 				tempVehicles=vehicles;
 				var i;
@@ -122,7 +122,7 @@ function setPlayingFalse(){
 }
 
 //removes vehicles from array if they do not have .playing = true
-function removeIdleVehicle() {
+function removeIdleVehicles() {
 	var i;
 	if (vehicles.length > 0){
 	for (i = 0; i < vehicles.length; i++) {
