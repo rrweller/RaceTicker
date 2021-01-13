@@ -2,7 +2,7 @@
 //these remove the car from the leaderboard
 var errorTolerance= 20; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
 var errorCounterSensitivity = 10; //how quickly a car gets yeeted when it goes off line, lower values = quicker
-//these pause the position of the car
+//these pause the position updating of the car
 var timeoutAmount = 50; // how long a car stays timed out after going off line
 var timeIncreaseThreshold = 20; // how much a car needs to jump in scriptTime to be considered off line
 //end config
@@ -12,16 +12,11 @@ var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
-var playerFocusID; //the ID of the car that the player looks at
-
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		` 
-		<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>
-		
-		`,
+		'<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>',
     replace: true,
     restrict: 'EA',
     
@@ -42,14 +37,13 @@ angular.module('beamng.apps')
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
 						var lineError = Math.abs(value.posError);
-						var averageLineError= 0;
-						var ScriptTimeIncrease= 0;	
+						var ScriptTimeIncrease= 0;
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array 
-							if (averageLineError>errorTolerance) {
+							if (getVehicleByID(veh_id).averageLineError>errorTolerance) {
 								getVehicleByID(veh_id).playing = "false"; //if the vehicle crashed, delete it
 							} else {
-								averageLineError = (errorCounterSensitivity*averageLineError+lineError)/11;
+								getVehicleByID(veh_id).averageLineError = (errorCounterSensitivity*getVehicleByID(veh_id).averageLineError+lineError)/errorCounterSensitivity+1;
 								ScriptTimeIncrease = value.scriptTime-getVehicleByID(veh_id).lastScriptTime;
 								getVehicleByID(veh_id).time = value.scriptTime;
 								getVehicleByID(veh_id).playing = "true"; //if the vehicle is still playing on line .playing gets set to true
@@ -58,8 +52,8 @@ angular.module('beamng.apps')
 							}
 						}
 
-						else if (averageLineError<errorTolerance) {//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false"};
+						else if (lineError>errorTolerance) {//if this vehicle is new
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false","averageLineError":0};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
@@ -89,13 +83,6 @@ angular.module('beamng.apps')
 						}
 					}
 				}
-				//setting playerFocusID to the ID of the car that the player is looking at right now
-				bngApi.engineLua('be:getPlayerVehicleID(0)',function(id){
-					
-					playerFocusID = id;
-					
-				});
-		
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
@@ -104,13 +91,7 @@ angular.module('beamng.apps')
 		
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
-					let isBold =  false;//if car i should be in bold text (if player looks at it)
-					if (vehiclesSorted[i].id == playerFocusID){
-						leaderboardFormatted += "<b>";
-						isBold = true;
-					}
 					leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + "<br>";
-					leaderboardFormatted += (isBold)? "</b>" : "";
 				}
 		
 				document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
