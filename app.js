@@ -12,11 +12,16 @@ var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
+var playerFocusID; //the ID of the car that the player looks at
+
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		'<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>',
+		` 
+		<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>
+		
+		`,
     replace: true,
     restrict: 'EA',
     
@@ -84,6 +89,13 @@ angular.module('beamng.apps')
 						}
 					}
 				}
+				//setting playerFocusID to the ID of the car that the player is looking at right now
+				bngApi.engineLua('be:getPlayerVehicleID(0)',function(id){
+					
+					playerFocusID = id;
+					
+				});
+		
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
@@ -92,7 +104,13 @@ angular.module('beamng.apps')
 		
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
+					let isBold =  false;//if car i should be in bold text (if player looks at it)
+					if (vehiclesSorted[i].id == playerFocusID){
+						leaderboardFormatted += "<b>";
+						isBold = true;
+					}
 					leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + "<br>";
+					leaderboardFormatted += (isBold)? "</b>" : "";
 				}
 		
 				document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
