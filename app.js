@@ -100,10 +100,18 @@ angular.module('beamng.apps')
 		
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
+					let isBold = false;
+					if (playerFocusID == vehiclesSorted[i].id ){
+						leaderboardFormatted+="<b>"
+						isBold = true;
+					}
 					if (vehiclesSorted[i].crashed=="true"){
 						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 					} else{
 						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
+					}
+					if (isBold){
+						leaderboardFormatted+="</b>"
 					}
 				}
 		
