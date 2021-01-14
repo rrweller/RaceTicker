@@ -15,7 +15,6 @@ var jumpToCarPosVar;
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
-var vehiclesName = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
 angular.module('beamng.apps')
@@ -72,7 +71,15 @@ angular.module('beamng.apps')
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
-								getVehicleByID(veh_id).name = name;//add the name of the new vehicle
+								//simplify and add name
+								var nameSpaces = name.replace(/_/g," ");
+								var nameSplit = nameSpaces.split(" ");
+								var simplifiedName= " ";
+								var i;
+								for(i = 0; i < nameSplit.length; i++){
+									simplifiedName += ((nameSplit[i].charAt(0).toUpperCase()) + (nameSplit[i].slice(1))).toString() + " ";
+								}
+								getVehicleByID(veh_id).name = simplifiedName; 
 							});
 						}
 					}	
@@ -120,15 +127,6 @@ angular.module('beamng.apps')
 				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
-					//format each vehicle's name and store in vehiclesName
-					var nameSpaces = vehiclesSorted[i].name.replace(/_/, " ");
-					var nameSplit = nameSpaces.split(" ");
-					for(s = 0; s < nameSplit.length; s++)
-					{
-						nameSplit[s] = nameSplit[s].charAt(0).toUpperCase() + nameSplit[s].slice(1);
-					}
-					vehiclesName[i] = nameSplit.toString(); 
-					
 					let isBold = false;
 					if (playerFocusID == vehiclesSorted[i].id ){
 						leaderboardFormatted+="<b>"
@@ -139,7 +137,7 @@ angular.module('beamng.apps')
 					} else if (vehiclesSorted[i].paused){
 						leaderboardFormatted += '<p style="color:orange; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 					} else{
-						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesName[i] + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
+						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
 					}
 					if (isBold){
 						leaderboardFormatted+="</b>"
