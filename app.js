@@ -102,9 +102,13 @@ angular.module('beamng.apps')
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					//format each vehicle's name and store in vehiclesName
-					var nameSplit = vehiclesSorted[i].name.split("_", 1);
-					var nameFormat = nameSplit.toString(); 
-					vehiclesName[i] = nameFormat.charAt(0).toUpperCase() + nameFormat.slice(1);
+					var nameSpaces = vehiclesSorted[i].name.replace(/_/, " ");
+					var nameSplit = nameSpaces.split(" ");
+					for(s = 0; s < nameSplit.length; s++)
+					{
+						nameSplit[s] = nameSplit[s].charAt(0).toUpperCase() + nameSplit[s].slice(1);
+					}
+					vehiclesName[i] = nameSplit.toString(); 
 					
 					let isBold = false;
 					if (playerFocusID == vehiclesSorted[i].id ){
