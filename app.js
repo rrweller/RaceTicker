@@ -12,14 +12,15 @@ var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 var playerFocusID; //the ID of the car that the player looks at
-
+var timeMode; //the mode of the time behind leader
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-				` 
+		` 
 		<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>
-		
+		<button onclick="function(); "class="TimeModeSwitch"> change the mode of the time behind leader or something please find better text me no englishsky </button>
+		<style>.TimeModeSwitch{background-color: Gold; color: CornflowerBlue;} </style>
 		`,
     replace: true,
     restrict: 'EA',
@@ -28,6 +29,7 @@ angular.module('beamng.apps')
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		
+		timeMode = 0;
 			
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
@@ -56,8 +58,8 @@ angular.module('beamng.apps')
 							}
 						}
 
-						else if (lineError>errorTolerance) {//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false","averageLineError":0};
+						else if (lineError<errorTolerance) {//if this vehicle is new
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false","averageLineError":0,"timeBehindLeaderRT":0,"timeBehindLeaderPrecentage":0};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
