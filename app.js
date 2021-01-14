@@ -16,7 +16,7 @@ angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		'<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><p id="leaderboard"></p>',
+		'<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><div id="leaderboard"></div>',
     replace: true,
     restrict: 'EA',
     
@@ -93,9 +93,9 @@ angular.module('beamng.apps')
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					if (vehiclesSorted[i].crashed=="true"){
-						leaderboardFormatted += '<div style="color:red;">' + (i+1) + "." + vehiclesSorted[i].name + "</div><br>";
+						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 					} else{
-						leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + ":" + (vehiclesSorted[0].time-vehiclesSorted[i].time) +  "<br>";
+						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round(vehiclesSorted[0].time-vehiclesSorted[i].time*100)/100) +  "s</p>";
 					}
 				}
 		
