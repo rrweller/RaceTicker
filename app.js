@@ -7,12 +7,23 @@ var timeoutAmount = 50; // how long a car stays timed out after going off line
 var timeIncreaseThreshold = 20; // how much a car needs to jump in scriptTime to be considered off line
 //end config
 
+var initalized;
+
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 var playerFocusID; //the ID of the car that the player looks at
+
+//time behind leader
+var clock;
 var timeMode; //the mode of the time behind leader
+var leaderCheckpointTime;//the time on the clock when the winner crossed the checkpoint;
+var timmings = [];//array consisting the timmings of the cars on the last checkpoint that the winner passed and their ID
+var leaderCheckpointIndex;//the last checkpoint that the leader had passed
+const CHECKPOINTS_EVERY = 10; //every x ScriptTime there will be an invisible imaginary magical checkpoint
+
+
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
@@ -29,8 +40,15 @@ angular.module('beamng.apps')
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		
-		timeMode = 0;
-			
+		initalized = false;
+		
+		timeMode = 0; //todo switch to more meaning full thing than 0 or 1 
+		leaderCheckpointIndex = 0; // 0 * CHECKPOINTS_EVERY = 0 <------ starting point
+		leaderCheckpointTime = 0;
+		
+		startClock();
+		
+		
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -89,6 +107,9 @@ angular.module('beamng.apps')
 						}
 					}
 				}
+				initialize();
+				
+				
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length > 0) {
@@ -100,7 +121,12 @@ angular.module('beamng.apps')
 					playerFocusID = id;
 					
 				});
-	
+				
+				//this should be called every frame
+				checkLeaderCheckpoints(vehicles[0]);
+				//maybe this should be called once per x frames to save performance (todo?)
+				updateTimings(vehicles);
+				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					let isBold =  false;//if car i should be in bold text (if player looks at it)
@@ -108,7 +134,7 @@ angular.module('beamng.apps')
 						leaderboardFormatted += "<b>";
 						isBold = true;
 					}
-					leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + "<br>";
+					leaderboardFormatted += (i+1) + "." + vehiclesSorted[i].name + " +"+((i==0)?"":((""+(getVehicleTimingByID(vehiclesSorted[i].id).time)-leaderCheckpointTime)))+"s<br>";
 					leaderboardFormatted += (isBold)? "</b>" : "";
 				}
 		
@@ -118,6 +144,71 @@ angular.module('beamng.apps')
 	
   };
 }])
+
+
+//things to only do once, but after stuff have been created
+function initialize(){
+	if (initalized){
+		return
+	}
+	
+	
+	for (let i =0; i<vehicles.length;i++){//resets the timmings of the cars
+		timmings[i] = {"id":vehicles[i].id,"passedCheckpoint":false,"time":0};
+	}
+	
+	
+	
+	initalize = true;
+}
+
+
+//update the timmings of the cars that crossed the last checkpoint
+function updateTimings(vehicles){
+	for (let i =0; i<timmings.length;i++){
+		if(vehicles[i].lastScriptTime > (leaderCheckpointIndex*CHECKPOINTS_EVERY))//if the vehicle crossed the last checkpoint that the leader crossed
+		{
+			if (!(getVehicleTimingByID(vehicles[i].id).passedCheckpoint))//if the car did not cross the checkpoint yet = it crossed it now!
+			{
+				//mark that it crossed the checkpoint
+				getVehicleTimingByID(vehicles[i].id).passedCheckpoint = true;
+				
+				//update the timing of the car crossing the checkpoint
+				getVehicleTimingByID(vehicles[i].id).time = clock;
+				
+			}
+		}
+	}
+	
+}
+
+//resets and starts the timer
+async function startClock(){
+	clock =0;
+	setInterval(function(){
+    clock+=0.01},10);
+	
+}
+
+
+//gets the leader, check if it passed a new checkpoint, if it did, update it and reset the timmings of the other cars
+function checkLeaderCheckpoints(leader){
+	if (leader.lastScriptTime > (leaderCheckpointIndex+1)*CHECKPOINTS_EVERY){//if the leader passed a new checkpoint
+		leaderCheckpointIndex++;
+		leaderCheckpointTime = clock;//save the time of the leader
+		timmings = [];
+		for (let i =0; i<vehicles.length;i++){//resets the timmings of the cars
+			timmings[i] = {"id":vehicles[i].id,"passedCheckpoint":false,"time":0};
+		}
+	}
+	
+}
+
+//returns the timing of the vehicle with a given ID
+ function getVehicleTimingByID(id){
+	let index = timmings.findIndex((timmings => timmings.id === id));
+	return timmings[index]
+}
 
 
 //returns a vehicle with a given ID
