@@ -13,6 +13,7 @@ var playerFocusID; //the ID of the car that the player looks at
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
+var vehiclesName = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
 angular.module('beamng.apps')
@@ -97,18 +98,23 @@ angular.module('beamng.apps')
 				if (vehicles.length > 0) {
 					leaderboardFormatted= "";
 				}
-		
+				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
+					//format each vehicle's name and store in vehiclesName
+					var nameSplit = vehiclesSorted[i].name.split("_", 1);
+					var nameFormat = nameSplit.toString(); 
+					vehiclesName[i] = nameFormat.charAt(0).toUpperCase() + nameFormat.slice(1);
+					
 					let isBold = false;
 					if (playerFocusID == vehiclesSorted[i].id ){
 						leaderboardFormatted+="<b>"
 						isBold = true;
 					}
 					if (vehiclesSorted[i].crashed){
-						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
+						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesName[i] + "</p>";
 					} else{
-						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
+						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesName[i] + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
 					}
 					if (isBold){
 						leaderboardFormatted+="</b>"
