@@ -44,20 +44,20 @@ angular.module('beamng.apps')
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array 
 							if (getVehicleByID(veh_id).averageLineError>errorTolerance) {
-								getVehicleByID(veh_id).crashed = "true"; //if the vehicle crashed, log it
+								getVehicleByID(veh_id).crashed = true; //if the vehicle crashed, log it
 							} else {
-								getVehicleByID(veh_id).crashed = "false";
+								getVehicleByID(veh_id).crashed = false;
 							}
 							getVehicleByID(veh_id).averageLineError = (errorCounterSensitivity*getVehicleByID(veh_id).averageLineError+lineError)/(errorCounterSensitivity+1);
 							ScriptTimeIncrease = value.scriptTime-getVehicleByID(veh_id).lastScriptTime;
-							getVehicleByID(veh_id).time = ((getVehicleByID(veh_id).crashed == "true")?getVehicleByID(veh_id).time:(value.scriptTime));//if the car isn't crashed, update its time
-							getVehicleByID(veh_id).playing = "true"; //if the vehicle is still playing on line .playing gets set to true
+							getVehicleByID(veh_id).time = ((getVehicleByID(veh_id).crashed == true)?getVehicleByID(veh_id).time:(value.scriptTime));//if the car isn't crashed, update its time
+							getVehicleByID(veh_id).playing = true; //if the vehicle is still playing on line .playing gets set to true
 							getVehicleByID(veh_id).ScriptTimeIncrease = ScriptTimeIncrease;
 							getVehicleByID(veh_id).lastScriptTime= value.scriptTime;
 						}
 
 						else {//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":"true","ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":"false","averageLineError":0,"crashed":"false"};
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":true,"ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":false,"averageLineError":0,"crashed":false};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
@@ -77,16 +77,16 @@ angular.module('beamng.apps')
 				var i;
 				for (i = 0; i < tempVehicles.length; i++) {
 					if (tempVehicles[i].ScriptTimeIncrease > timeIncreaseThreshold) {
-						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == "false") {
+						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == false) {
 							console.log("paused ScriptTime Increasing");
 							vehicles[i].storedScriptTime = vehicles[i].lastScriptTime;
 							vehicles[i].scriptTimePausedTimeout = timeoutAmount;
-							vehicles[i].paused = "true";
+							vehicles[i].paused = true;
 						}
-						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == "true") {
-							vehicles[i].paused = "false";
+						if (vehicles[i].scriptTimePausedTimeout == 0 & vehicles[i].paused == true) {
+							vehicles[i].paused = false;
 						}
-						if (vehicles[i].scriptTimePausedTimeout > 0 & vehicles[i].paused == "true") {
+						if (vehicles[i].scriptTimePausedTimeout > 0 & vehicles[i].paused == true) {
 							tempVehicles[i].time = vehicles[i].storedScriptTime;
 							vehicles[i].scriptTimePausedTimeout = vehicles[i].scriptTimePausedTimeout-1;
 						}
@@ -105,7 +105,7 @@ angular.module('beamng.apps')
 						leaderboardFormatted+="<b>"
 						isBold = true;
 					}
-					if (vehiclesSorted[i].crashed=="true"){
+					if (vehiclesSorted[i].crashed==true){
 						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 					} else{
 						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
@@ -134,8 +134,8 @@ function setPlayingFalse(){
 	var i;
 	if (vehicles.length > 0) {
 		for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
-			if (vehicles[i].playing == "true"){
-				vehicles[i].playing = "false";
+			if (vehicles[i].playing == true){
+				vehicles[i].playing = false;
 			}
 		}
 	}
@@ -146,7 +146,7 @@ function removeIdleVehicles() {
 	var i;
 	if (vehicles.length > 0){
 	for (i = 0; i < vehicles.length; i++) {
-		if (vehicles[i].playing == "false"){
+		if (vehicles[i].playing == false){
 				vehicles.splice(i,1);
 				leaderboardFormatted= "Start line to start leaderboard";
 			}
