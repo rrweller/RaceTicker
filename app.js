@@ -7,6 +7,9 @@ var timeoutAmount = 50; // how long a car stays timed out after going off line
 var timeIncreaseThreshold = 1000; // how much a car needs to jump in scriptTime to be considered off line
 //end config
 
+var playerFocusID; //the ID of the car that the player looks at
+
+
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
@@ -64,6 +67,11 @@ angular.module('beamng.apps')
 					}	
 				});
 				removeIdleVehicles();
+				bngApi.engineLua('be:getPlayerVehicleID(0)',function(id){
+					playerFocusID = id;
+				});
+				
+				
 				// manages vehicles maintaining their position for some time when going off-line
 				tempVehicles=vehicles;
 				var i;
