@@ -50,7 +50,7 @@ angular.module('beamng.apps')
 							}
 							getVehicleByID(veh_id).averageLineError = (errorCounterSensitivity*getVehicleByID(veh_id).averageLineError+lineError)/(errorCounterSensitivity+1);
 							ScriptTimeIncrease = value.scriptTime-getVehicleByID(veh_id).lastScriptTime;
-							getVehicleByID(veh_id).time = value.scriptTime;
+							getVehicleByID(veh_id).time = ((getVehicleByID(veh_id).crashed == "true")?getVehicleByID(veh_id).time:(value.scriptTime));//if the car isn't crashed, update its time
 							getVehicleByID(veh_id).playing = "true"; //if the vehicle is still playing on line .playing gets set to true
 							getVehicleByID(veh_id).ScriptTimeIncrease = ScriptTimeIncrease;
 							getVehicleByID(veh_id).lastScriptTime= value.scriptTime;
