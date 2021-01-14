@@ -123,7 +123,7 @@ angular.module('beamng.apps')
 				});
 				
 				//this should be called every frame
-				checkLeaderCheckpoints(vehicles[0]);
+				checkLeaderCheckpoints(vehiclesSorted[0]);
 				//maybe this should be called once per x frames to save performance (todo?)
 				updateTimings(vehicles);
 				
