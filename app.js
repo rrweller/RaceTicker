@@ -9,7 +9,9 @@ var timeIncreaseThreshold = 5; // how much a car needs to jump in scriptTime to 
 
 var playerFocusID; //the ID of the car that the player looks at
 
+var tick;
 
+var jumpToCarPosVar;
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
@@ -20,7 +22,10 @@ angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		'<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><div id="leaderboard"></div>',
+		`<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp"><div id="leaderboard"></div>
+		<button onclick="jumpToCarPos(1)" class="jumperBTN">jump to leader</button>
+		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
+		`,
     replace: true,
     restrict: 'EA',
     
@@ -28,12 +33,13 @@ angular.module('beamng.apps')
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		
-			
+		jumpToCarPosVar = {"toId":0,"toJump":false}
+		tick = 0;
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
 				bngApi.engineLua('be:queueAllObjectLua("obj:queueGameEngineLua(\'script_state_table[\'..obj:getID() .. \'] = \' .. serialize(ai.scriptState()))")');
-				
+				tick++;
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {	
 					setPlayingFalse();
@@ -99,6 +105,19 @@ angular.module('beamng.apps')
 					leaderboardFormatted= "";
 				}
 				
+				
+				//jumps to the car that the player wanted to jump to
+				//todo: make it faster by calculating how many jumps are needed
+				if (jumpToCarPosVar.toJump && tick%4 == 0){
+					if (""+playerFocusID == ""+jumpToCarPosVar.toId){//if the player is looking at the car he that wanted to look at
+						jumpToCarPosVar.toJump = false;
+					}
+					else{
+						bngApi.engineLua('be:enterNextVehicle(0,1)');//jump to the next car
+					}
+				}
+				
+				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					//format each vehicle's name and store in vehiclesName
@@ -134,6 +153,14 @@ angular.module('beamng.apps')
   };
 }])
 
+
+//tells the game to jumps to car at position pos
+function jumpToCarPos(pos){
+	
+	jumpToCarPosVar.toId = vehiclesSorted[pos-1].id;
+	jumpToCarPosVar.toJump =true;
+	
+}
 
 //returns a vehicle with a given ID
  function getVehicleByID(id){
