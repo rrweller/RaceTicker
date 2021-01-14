@@ -115,13 +115,10 @@ angular.module('beamng.apps')
 				
 				//jumps to the car that the player wanted to jump to
 				//todo: make it faster by calculating how many jumps are needed
-				if (jumpToCarPosVar.toJump && tick%4 == 0){
-					if (""+playerFocusID == ""+jumpToCarPosVar.toId){//if the player is looking at the car he that wanted to look at
-						jumpToCarPosVar.toJump = false;
-					}
-					else{
-						bngApi.engineLua('be:enterNextVehicle(0,1)');//jump to the next car
-					}
+				if (jumpToCarPosVar.toJump){
+
+					bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+jumpToCarPosVar.toId+'))');//jump to the right car
+					jumpToCarPosVar.toJump = false;
 				}
 				
 				
