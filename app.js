@@ -8,28 +8,34 @@ var timeIncreaseThreshold = 5; // how much a car needs to jump in scriptTime to 
 //end config
 
 var playerFocusID; //the ID of the car that the player looks at
+var todebug;
 
 var vehicles = [];
 var tempVehicles = [];
 var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
+var numberOfCars;
+
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		`<div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp">
-		´<div id="leaderboard"></div>
-		<button ng-click="jumpToCarPos(1)" class="jumperBTN">jump to leader</button>
+		`<body><div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp">
+		<div id="leaderboard"></div></body>
+		<div id="btns"></div></body>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		`,
+		<style> .car {background-color:gray;color:white;border: 1px solid white; width: 16600px}</style>
+		`,//<button ng-click="jumpToCarPos(1)" class="jumperBTN">jump to leader</button>
     replace: true,
     restrict: 'EA',
     
 	link: function (scope, element, attrs) {
-		
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
+		
+		numberOfCars =0;
+		
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -84,6 +90,11 @@ angular.module('beamng.apps')
 					playerFocusID = id;
 				});
 				
+				if (todebug!=""){
+					console.log(todebug);
+					todebug ="";
+					
+				}
 				
 				// manages vehicles maintaining their position for some time when going off-line
 				tempVehicles=vehicles;
@@ -106,11 +117,26 @@ angular.module('beamng.apps')
 				if (vehicles.length > 0) {
 					leaderboardFormatted= "";
 				}
+					for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
+						
+						var button = document.createElement("button");
+						button.innerHTML = "Tessssssssssssssst!!!!";
+						var leaderboard = document.getElementById("btns");
+						leaderboard.appendChild(button);
+						button.className  = "car";
+						button.addEventListener("click",function(){
+							debug("test");
+						
+					});
+						
+					}
+
 				
 				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					let isBold = false;
+					
 					if (playerFocusID == vehiclesSorted[i].id ){
 						leaderboardFormatted+="<b>"
 						isBold = true;
@@ -125,9 +151,13 @@ angular.module('beamng.apps')
 					if (isBold){
 						leaderboardFormatted+="</b>"
 					}
+
+
 				}
-		
+				
+				
 				document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
+				
 		});
 		
 		scope.jumpToCarPos = function(pos){
@@ -137,6 +167,11 @@ angular.module('beamng.apps')
 	}
   };
 }])
+
+function debug(str){
+	todebug = ""+str;
+	
+}
 
 //returns a vehicle with a given ID
  function getVehicleByID(id){
