@@ -23,9 +23,9 @@ angular.module('beamng.apps')
     template:  
 		`<body><div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp">
 		<div id="leaderboard"></div></body>
-		<div id="btns"></div></body>
+		<div id="cars"></div></body>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:gray;color:white;border: 1px solid white; width: 16600px}</style>
+		<style> .car {background-color:gray;color:white;border: 1px solid white; ; width: 100%;}</style>
 		`,//<button ng-click="jumpToCarPos(1)" class="jumperBTN">jump to leader</button>
     replace: true,
     restrict: 'EA',
@@ -120,10 +120,11 @@ angular.module('beamng.apps')
 					for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
 						
 						var button = document.createElement("button");
-						button.innerHTML = "Tessssssssssssssst!!!!";
-						var leaderboard = document.getElementById("btns");
+						button.innerHTML = "If you see this, it means Oren did something wrong in the code";
+						var leaderboard = document.getElementById("cars");
 						leaderboard.appendChild(button);
 						button.className  = "car";
+						button.id = "TelAviv"+numberOfCars
 						button.addEventListener("click",function(){
 							debug("test");
 						
@@ -135,28 +136,36 @@ angular.module('beamng.apps')
 				
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
+					let carText ="";
 					let isBold = false;
 					
 					if (playerFocusID == vehiclesSorted[i].id ){
 						leaderboardFormatted+="<b>"
+						carText+="<b>";
 						isBold = true;
 					}
 					if (vehiclesSorted[i].crashed){
-						leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
+						//leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
+						carText += '<span style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else if (vehiclesSorted[i].paused){
-						leaderboardFormatted += '<p style="color:orange; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
+						//leaderboardFormatted += '<p style="color:orange; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
+						carText += '<span style="color:orange; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
-						leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";;
+						//leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";
+						carText += '<span style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</span>";
+
 					}
 					if (isBold){
-						leaderboardFormatted+="</b>"
+						leaderboardFormatted += "</b>";
+						carText += "</b>";
 					}
-
+					
+					document.getElementById("TelAviv"+i).innerHTML = carText;
 
 				}
 				
 				
-				document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
+				//document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
 				
 		});
 		
