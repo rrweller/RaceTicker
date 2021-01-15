@@ -27,7 +27,6 @@ angular.module('beamng.apps')
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		<style> .car {background-color:gray;color:white;border: 1px solid white; ; width: 100%;}</style>
 		`,
-		//<button ng-click="jumpToCarPos(1)" class="jumperBTN">jump to leader</button>
     replace: true,
     restrict: 'EA',
     
@@ -149,13 +148,10 @@ angular.module('beamng.apps')
 						isBold = true;
 					}
 					if (vehiclesSorted[i].crashed){
-						//leaderboardFormatted += '<p style="color:red; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 						carText += '<span style="color:red; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else if (vehiclesSorted[i].paused){
-						//leaderboardFormatted += '<p style="color:orange; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</p>";
 						carText += '<span style="color:orange; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
-						//leaderboardFormatted += '<p style="color:white; background-color:grey; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</p>";
 						carText += '<span style="color:white; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</span>";
 
 					}
@@ -167,9 +163,6 @@ angular.module('beamng.apps')
 					document.getElementById("TelAviv"+i).innerHTML = carText;
 
 				}
-				
-				
-				//document.getElementById("leaderboard").innerHTML = leaderboardFormatted;
 				
 		});
 		
