@@ -145,6 +145,10 @@ angular.module('beamng.apps')
 
 				}
 				
+				if (numberOfCars == 0){
+					document.getElementById("cars").innerHTML = leaderboardFormatted
+				}
+				
 		});
 		
 		scope.jumpToCarPos = function(pos){
