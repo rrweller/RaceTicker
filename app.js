@@ -25,7 +25,7 @@ angular.module('beamng.apps')
 		<div id="leaderboard"></div></body>
 		<div id="cars"></div></body>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:gray;color:white;border: 1px solid white; ; width: 100%;}</style>
+		<style> .car {background-color:gray;color:white;border: 1px solid white; ; width: 100%;text-align: left;}</style>
 		`,
     replace: true,
     restrict: 'EA',
