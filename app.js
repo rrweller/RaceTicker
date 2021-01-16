@@ -16,6 +16,7 @@ var vehiclesSorted = [];
 var leaderboardFormatted= "Start line to start leaderboard";
 
 var numberOfCars;
+var prevVehLength;
 
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
@@ -35,7 +36,7 @@ angular.module('beamng.apps')
 		bngApi.engineLua('script_state_table = {}');
 		
 		numberOfCars =0;
-		
+
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -114,8 +115,9 @@ angular.module('beamng.apps')
 				}
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
-				if (vehicles.length > 0) {
-					leaderboardFormatted= "";
+				if (vehicles.length !== prevVehLength) {
+					numberOfCars = 0;
+					document.getElementById("cars").innerHTML= '';
 				}
 				
 				//make a button for every car
@@ -126,24 +128,22 @@ angular.module('beamng.apps')
 					var leaderboard = document.getElementById("cars");
 					leaderboard.appendChild(button);
 					button.className  = "car";
-					button.id = "TelAviv"+numberOfCars
+					button.id = numberOfCars
 					button.value = (numberOfCars+1);//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
 					button.addEventListener("click",function(){ //on click, jump to the car that that is in the position that is the value of the button
 							scope.jumpToCarPos(parseInt((this.value)));
-						
 					});
 						
 				}
 
 				
-				
+				prevVehLength= vehicles.length;
 				var i;
 				for (i = 0; i < vehiclesSorted.length; i++) {
 					let carText ="";
 					let isBold = false;
 					
 					if (playerFocusID == vehiclesSorted[i].id ){
-						leaderboardFormatted+="<b>"
 						carText+="<b>";
 						isBold = true;
 					}
@@ -156,11 +156,10 @@ angular.module('beamng.apps')
 
 					}
 					if (isBold){
-						leaderboardFormatted += "</b>";
 						carText += "</b>";
 					}
 					
-					document.getElementById("TelAviv"+i).innerHTML = carText;
+					document.getElementById(i).innerHTML = carText;
 
 				}
 				
