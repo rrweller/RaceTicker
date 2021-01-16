@@ -64,7 +64,6 @@ angular.module('beamng.apps')
 							} else {
 								vehicles[arrayID].crashed = false;
 							}
-							console.log(vehicles[arrayID].averageLineError);
 						}
 
 						else {//if this vehicle is new
