@@ -1,11 +1,9 @@
 //config
 //these remove the car from the leaderboard
-var errorTolerance= 100; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
-var errorCounterSensitivity = 100; //how quickly a car gets yeeted when it goes off line, lower values = quicker
+var errorTolerance= 5; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
+var errorCounterSensitivity = 5; //how quickly a car gets yeeted when it goes off line, lower values = quicker
 //these pause the position updating of the car
-var timeoutAmount = 50; // how long a car stays timed out after going off line
-var timeIncreaseThreshold = 5; // how much a car needs to jump in scriptTime to be considered off line
-//end config
+
 
 var playerFocusID; //the ID of the car that the player looks at
 var todebug ="";
@@ -26,7 +24,7 @@ angular.module('beamng.apps')
 		<div id="leaderboard"></div></body>
 		<div id="cars"></div></body>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; ; width: 100%;text-align: left;}</style>
+		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
 		<style> span {pointer-events: none;}</style>
 		`,
     replace: true,
@@ -49,28 +47,28 @@ angular.module('beamng.apps')
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
 						var lineError = Math.abs(value.posError);
-						var ScriptTimeIncrease= 0;
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array
 							var arrayID = vehicles.findIndex((vehicle => vehicle.id === veh_id));
+							vehicles[arrayID].averageLineError = (errorCounterSensitivity*vehicles[arrayID].averageLineError+lineError)/(errorCounterSensitivity+1);
+							ScriptTimeIncrease = value.scriptTime-vehicles[arrayID].lastScriptTime;
+							vehicles[arrayID].time = value.scriptTime;//if the car isn't crashed, update its time
+							vehicles[arrayID].playing = true; //if the vehicle is still playing on line .playing gets set to true
+							vehicles[arrayID].lastScriptTime= value.scriptTime;
+							vehicles[arrayID].lasterScriptTime= vehicles[arrayID].lastScriptTime;
 							if (vehicles[arrayID].averageLineError>errorTolerance) {
+								if (!vehicles[arrayID].crashed){
 								vehicles[arrayID].crashed = true; //if the vehicle crashed, log it
+								vehicles[arrayID].storedScriptTime = vehicles[arrayID].lasterScriptTime;
+								}
 							} else {
 								vehicles[arrayID].crashed = false;
 							}
-							vehicles[arrayID].averageLineError = (errorCounterSensitivity*vehicles[arrayID].averageLineError+lineError)/(errorCounterSensitivity+1);
-							ScriptTimeIncrease = value.scriptTime-vehicles[arrayID].lastScriptTime;
-							vehicles[arrayID].time = ((vehicles[arrayID].crashed)? vehicles[arrayID].lasterScriptTime:(value.scriptTime));//if the car isn't crashed, update its time
-							vehicles[arrayID].playing = true; //if the vehicle is still playing on line .playing gets set to true
-							vehicles[arrayID].ScriptTimeIncrease = ScriptTimeIncrease;
-							vehicles[arrayID].lastScriptTime= value.scriptTime;
-							vehicles[arrayID].lasterScriptTime= vehicles[arrayID].lastScriptTime;
-
-							
+							console.log(vehicles[arrayID].averageLineError);
 						}
 
 						else {//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":true,"ScriptTimeIncrease":0,"lastScriptTime":value.scriptTime,"lasterScriptTime":value.scriptTime,"storedScriptTime":0,"scriptTimePausedTimeout":0,"paused":false,"averageLineError":0,"crashed":false};
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":true,"lastScriptTime":value.scriptTime,"lasterScriptTime":value.scriptTime,"storedScriptTime":0,"averageLineError":0,"crashed":false};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
@@ -92,26 +90,12 @@ angular.module('beamng.apps')
 					playerFocusID = id;
 				});
 				
-				if (todebug!=""){
-					console.log(todebug);
-					todebug ="";
-					
-				}
-				
 				// manages vehicles maintaining their position for some time when going off-line
 				tempVehicles=vehicles;
 				var i;
 				for (i = 0; i < tempVehicles.length; i++) {
-					if (tempVehicles[i].ScriptTimeIncrease > timeIncreaseThreshold) {
-						console.log("paused ScriptTime Increasing");
-						vehicles[i].storedScriptTime = vehicles[i].lasterScriptTime;
-						vehicles[i].scriptTimePausedTimeout = timeoutAmount;
-						vehicles[i].paused = true;
-					} else if (vehicles[i].scriptTimePausedTimeout == 0 && vehicles[i].paused) {
-						vehicles[i].paused = false;
-					} else if (vehicles[i].scriptTimePausedTimeout > 0 && vehicles[i].paused) {
+					if (vehicles[i].crashed) {
 						tempVehicles[i].time = vehicles[i].storedScriptTime;
-						vehicles[i].scriptTimePausedTimeout = vehicles[i].scriptTimePausedTimeout-1;
 					}
 				}
 				//formatting information for leaderboard
@@ -150,8 +134,6 @@ angular.module('beamng.apps')
 					}
 					if (vehiclesSorted[i].crashed){
 						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
-					} else if (vehiclesSorted[i].paused){
-						carText += '<span style="color:orange; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
 						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">+0s</span> ": "<span style=\"color: red\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
 
