@@ -26,7 +26,7 @@ angular.module('beamng.apps')
 		<div id="leaderboard"></div></body>
 		<div id="cars"></div></body>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:gray;color:white;border: 1px solid white; ; width: 100%;text-align: left;}</style>
+		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; ; width: 100%;text-align: left;}</style>
 		`,
     replace: true,
     restrict: 'EA',
@@ -148,11 +148,11 @@ angular.module('beamng.apps')
 						isBold = true;
 					}
 					if (vehiclesSorted[i].crashed){
-						carText += '<span style="color:red; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
+						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else if (vehiclesSorted[i].paused){
-						carText += '<span style="color:orange; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
+						carText += '<span style="color:orange; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
-						carText += '<span style="color:white; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">+0s</span> ": (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100)+"s") +  "</span>";
+						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">+0s</span> ": (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100)+"s") +  "</span>";
 
 					}
 					if (isBold){
