@@ -122,7 +122,7 @@ angular.module('beamng.apps')
 				for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
 						
 					var button = document.createElement("button");
-					button.innerHTML = "If you see this, it means Oren did something wrong in the code";
+					button.innerHTML = "If you see this, it means that Oren did something wrong in the code of the clickable cars";
 					var leaderboard = document.getElementById("cars");
 					leaderboard.appendChild(button);
 					button.className  = "car";
@@ -152,7 +152,7 @@ angular.module('beamng.apps')
 					} else if (vehiclesSorted[i].paused){
 						carText += '<span style="color:orange; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
-						carText += '<span style="color:white; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      +" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100) +  "s</span>";
+						carText += '<span style="color:white; border: 5px solid gray; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">+0s</span> ": (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100)+"s") +  "</span>";
 
 					}
 					if (isBold){
