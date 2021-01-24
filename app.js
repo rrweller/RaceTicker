@@ -16,6 +16,8 @@ var leaderboardFormatted= "Start line to start leaderboard";
 var numberOfCars;
 var prevVehLength;
 
+var lineEnd;
+
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
@@ -43,9 +45,15 @@ angular.module('beamng.apps')
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {	
 					setPlayingFalse();
+					var saved = false;
 					for (const [key, value] of Object.entries(data)) {
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
+						if(!saved)
+						{
+							lineEnd = value.endScriptTime;
+							saved = true;
+						}
 						var lineError = Math.abs(value.posError);
 						//adds id and scriptTime to vehicles array
 						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array
@@ -134,7 +142,7 @@ angular.module('beamng.apps')
 					if (vehiclesSorted[i].crashed){
 						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
 					} else{
-						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">+0s</span> ": "<span style=\"color: #ff5c38\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
+						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
 
 					}
 					if (isBold){
