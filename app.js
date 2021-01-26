@@ -28,8 +28,16 @@ angular.module('beamng.apps')
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
 		<div id="cars"></div></body>
-		<style> .top {background-color:rgba(100,100,100,0.5);color:white;border: 3px solid white; width: 100%;text-align: center;}</style>
-		<style> .laps {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 50%;text-align: right;}</style>
+		<style> .top {background-color:rgba(100,100,100,0.2);color:white;border: 3px solid white; width: 100%;text-align: center;}</style>
+		<style> .laps {display:flex; flex-direction:row; align-items: center; background-color:rgba(100,100,100,0.2); color:white; border: 1px solid white; width: 100%;text-align: right;}</style>
+		<style> .lapBTN {
+			border-radius: 1px;
+			color: #ffffff;
+			font-size: 14px;
+			background: #d98934;
+			padding: 3px 5px 3px 5px;
+			border: solid #ffffff 1px;
+			}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
 		<style> span {pointer-events: none;}</style>
@@ -41,9 +49,14 @@ angular.module('beamng.apps')
 	link: function (scope, element, attrs) {
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
+		bngApi.engineLua('fuel_table = {}');
 		
-		numberOfCars =0;
+		numberOfCars = 0;
 		
+		//initalize images
+		fuelimg = document.createElement('img');
+		fuelimg.src = '/modules/apps/RaceTicker/fuel.png';
+			
 		//format top of leaderboard
 			var top = document.getElementById("top");
 			document.getElementById("top").innerHTML = '<b><span style="font-size:24px;">' + "AIT AI Race Leaderboard<br>" + "</span>";
@@ -53,7 +66,9 @@ angular.module('beamng.apps')
 			var negLap = document.createElement("button");
 			negLap.innerHTML = "-";
 			laps.appendChild(negLap);
-			//negLap.className = "lapBTN";
+			negLap.className = "lapBTN";
+			negLap.style.order = "1";
+			//neglap.style.alignSelf="center";
 			negLap.addEventListener("click",function(){
 				if(numLaps > 0){
 					numLaps = numLaps - 1;
@@ -62,14 +77,15 @@ angular.module('beamng.apps')
 			
 		//textbox for # of laps display
 			var laptextbox = document.createElement("Text");
-			laptextbox.innerHTML = '<span style="font-size:16px; color:white;">' + numLaps + " Laps" + "</span>";
 			laps.appendChild(laptextbox);
+			laptextbox.style.order = "2";
 			
 		//add a lap button
 			var posLap = document.createElement("button");
 			posLap.innerHTML = "+";
 			laps.appendChild(posLap);
-			//posLap.className = "lapBTN";
+			posLap.className = "lapBTN";
+			posLap.style.order = "3";
 			posLap.addEventListener("click",function(){
 				numLaps = numLaps + 1;
 			});
@@ -79,22 +95,23 @@ angular.module('beamng.apps')
 			var fuelcheck = document.createElement("input");
 			fuelcheck.type = "checkbox";
 			fuelcheck.name = "fuelcheck";
-			fuelcheck.value = "fuelvalue";
 			fuelcheck.id = "fuel";
 				
-			var label = document.createElement('label');
-			label.htmlFor = "fuel";
+			var fuellabel = document.createElement('label');
+			fuellabel.htmlFor = "fuel";
 				
-			label.appendChild(document.createTextNode('Display Fuel?'));
-				
-			top.appendChild(fuelcheck);
-			top.appendChild(label);
+			fuellabel.appendChild(document.createTextNode(''));
+			laps.appendChild(fuelcheck);
+			laps.appendChild(fuellabel);
+			fuelcheck.style.order = "4";
+			fuellabel.style.order = "5";
 		//-----------------------------------------------------------
 
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
 				bngApi.engineLua('be:queueAllObjectLua("obj:queueGameEngineLua(\'script_state_table[\'..obj:getID() .. \'] = \' .. serialize(ai.scriptState()))")');
+				bngApi.engineLua('be:queueAllObjectLua("obj:queueGameEngineLua(\'fuel_table[\'..obj:getID() .. \'] = \' .. serialize(electrics.values.fuel))")');
 				//This gets that script_state_table from GameEngine Lua
 				bngApi.engineLua('script_state_table', function(data) {	
 					setPlayingFalse();
@@ -145,6 +162,14 @@ angular.module('beamng.apps')
 						}
 					}	
 				});
+				bngApi.engineLua('fuel_table', function(data) {	
+					for (const [key, value] of Object.entries(data)) {
+						let veh_id = key;
+						if(vehicles.some(vehicle => vehicle.id === veh_id)){//if the vehicle already exists in the array 
+							getVehicleByID(veh_id).fuel = value;
+						}
+					}
+				});
 				removeIdleVehicles();
 				bngApi.engineLua('be:getPlayerVehicleID(0)',function(id){
 					playerFocusID = id;
@@ -169,9 +194,12 @@ angular.module('beamng.apps')
 				//-----------------------------------------------------------
 				
 				
-				//update # of laps display
-				laptextbox.innerHTML = '<span style="font-size:16px; color:white;">' + numLaps + " Laps" + "</span>";
+				//update top buttons
+				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + numLaps + " Laps" + "</span>";
 				laps.appendChild(laptextbox);
+				
+				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Display Fuel?" + "</span>";
+				laps.appendChild(fuellabel);
 				//-----------------------------------------------------------
 				
 				
@@ -203,15 +231,20 @@ angular.module('beamng.apps')
 					}
 					if (vehiclesSorted[i].crashed){
 						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "</span>";
-					} else{
+					} else if (!fuelcheck.checked){
 						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
-
+					} else if (fuelcheck.checked){
+						carText += '<span style="color:white; margin: 1px 5px 1px 5px;">' + (i+1) + ". " + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + "          " + "Fuel left: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
 					}
 					if (isBold){
 						carText += "</b>";
 					}
 					
 					document.getElementById(i).innerHTML = carText;
+					if(fuelcheck.checked)
+					{
+						document.getElementById(i).appendChild(fuelimg);
+					}
 
 				}
 				
