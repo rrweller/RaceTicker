@@ -17,26 +17,79 @@ var numberOfCars;
 var prevVehLength;
 
 var lineEnd;
+var numLaps = 0;
 
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
   return {
     template:  
-		`<body><div style="width:100%; height:100%;" layout="column" layout-align="top left" class="bngApp">
+		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column" layout-align="top left" class="bngApp">
 		<div id="leaderboard"></div></body>
+		<div id="top" class="top"></div></body>
+		<div id="laps" class="laps"></div></body>
 		<div id="cars"></div></body>
+		<style> .top {background-color:rgba(100,100,100,0.5);color:white;border: 3px solid white; width: 100%;text-align: center;}</style>
+		<style> .laps {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 50%;text-align: right;}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
 		<style> span {pointer-events: none;}</style>
 		`,
     replace: true,
     restrict: 'EA',
+	
     
 	link: function (scope, element, attrs) {
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		
 		numberOfCars =0;
+		
+		//format top of leaderboard
+			var top = document.getElementById("top");
+			document.getElementById("top").innerHTML = '<b><span style="font-size:24px;">' + "AIT AI Race Leaderboard<br>" + "</span>";
+		//-----------------------------------------------------------
+				
+		//subtract a lap button
+			var negLap = document.createElement("button");
+			negLap.innerHTML = "-";
+			laps.appendChild(negLap);
+			//negLap.className = "lapBTN";
+			negLap.addEventListener("click",function(){
+				if(numLaps > 0){
+					numLaps = numLaps - 1;
+				}
+			});
+			
+		//textbox for # of laps display
+			var laptextbox = document.createElement("Text");
+			laptextbox.innerHTML = '<span style="font-size:16px; color:white;">' + numLaps + " Laps" + "</span>";
+			laps.appendChild(laptextbox);
+			
+		//add a lap button
+			var posLap = document.createElement("button");
+			posLap.innerHTML = "+";
+			laps.appendChild(posLap);
+			//posLap.className = "lapBTN";
+			posLap.addEventListener("click",function(){
+				numLaps = numLaps + 1;
+			});
+		//-----------------------------------------------------------
+				
+		//Create checkbox to show fuel amounts or not
+			var fuelcheck = document.createElement("input");
+			fuelcheck.type = "checkbox";
+			fuelcheck.name = "fuelcheck";
+			fuelcheck.value = "fuelvalue";
+			fuelcheck.id = "fuel";
+				
+			var label = document.createElement('label');
+			label.htmlFor = "fuel";
+				
+			label.appendChild(document.createTextNode('Display Fuel?'));
+				
+			top.appendChild(fuelcheck);
+			top.appendChild(label);
+		//-----------------------------------------------------------
 
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
@@ -105,12 +158,22 @@ angular.module('beamng.apps')
 						tempVehicles[i].time = vehicles[i].storedScriptTime;
 					}
 				}
+				//-----------------------------------------------------------
+				
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length !== prevVehLength) {
 					numberOfCars = 0;
 					document.getElementById("cars").innerHTML= '';
 				}
+				//-----------------------------------------------------------
+				
+				
+				//update # of laps display
+				laptextbox.innerHTML = '<span style="font-size:16px; color:white;">' + numLaps + " Laps" + "</span>";
+				laps.appendChild(laptextbox);
+				//-----------------------------------------------------------
+				
 				
 				//make a button for every car
 				for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
@@ -120,14 +183,13 @@ angular.module('beamng.apps')
 					var leaderboard = document.getElementById("cars");
 					leaderboard.appendChild(button);
 					button.className  = "car";
-					button.id = numberOfCars
+					button.id = numberOfCars;
 					button.value = (numberOfCars+1);//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
 					button.addEventListener("click",function(){ //on click, jump to the car that that is in the position that is the value of the button
 							scope.jumpToCarPos(parseInt((this.value)));
 					});
 						
 				}
-
 				
 				prevVehLength= vehicles.length;
 				var i;
