@@ -2,7 +2,8 @@
 //these remove the car from the leaderboard
 var errorTolerance= 5; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
 var errorCounterSensitivity = 5; //how quickly a car gets yeeted when it goes off line, lower values = quicker
-//these pause the position updating of the car
+var jumpDetInterval = 10;
+//config end
 
 
 var playerFocusID; //the ID of the car that the player looks at
@@ -18,6 +19,9 @@ var prevVehLength;
 
 var lineEnd;
 var numLaps = 0;
+
+var scriptTimeJumpTimer = 0;
+var currentTime
 
 angular.module('beamng.apps')
 .directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
@@ -52,6 +56,8 @@ angular.module('beamng.apps')
 		bngApi.engineLua('fuel_table = {}');
 		
 		numberOfCars = 0;
+		
+		//Top UI Stuff =============================
 		
 		//initalize images
 		fuelimg = document.createElement('img');
@@ -105,7 +111,10 @@ angular.module('beamng.apps')
 			laps.appendChild(fuellabel);
 			fuelcheck.style.order = "4";
 			fuellabel.style.order = "5";
-		//-----------------------------------------------------------
+			
+			
+		//Top UI Stuff end ===================================
+		
 
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
@@ -116,6 +125,14 @@ angular.module('beamng.apps')
 				bngApi.engineLua('script_state_table', function(data) {	
 					setPlayingFalse();
 					var saved = false;
+					
+					//ScriptTime jump detection timer
+					if (scriptTimeJumpTimer > jumpDetInterval+1) {
+						scriptTimeJumpTimer == 0;
+					} else {
+						scriptTimeJumpTimer++;
+					}
+				
 					for (const [key, value] of Object.entries(data)) {
 						let veh_id = key;
 						var scriptPercent = value.scriptTime / value.endScriptTime * 100 ;
@@ -131,6 +148,7 @@ angular.module('beamng.apps')
 							vehicles[arrayID].averageLineError = (errorCounterSensitivity*vehicles[arrayID].averageLineError+lineError)/(errorCounterSensitivity+1);
 							ScriptTimeIncrease = value.scriptTime-vehicles[arrayID].lastScriptTime;
 							vehicles[arrayID].time = value.scriptTime;//if the car isn't crashed, update its time
+							currentTime= new Date();
 							vehicles[arrayID].playing = true; //if the vehicle is still playing on line .playing gets set to true
 							vehicles[arrayID].lastScriptTime= value.scriptTime;
 							vehicles[arrayID].lasterScriptTime= vehicles[arrayID].lastScriptTime;
@@ -142,10 +160,21 @@ angular.module('beamng.apps')
 							} else {
 								vehicles[arrayID].crashed = false;
 							}
+							
+							//if the vehicle jumped in time, set it to crashed
+							if (scripTimeJumpTimer == jumpDetInterval) {
+								if (vehicles[arrayID].scriptTime-vehicles[arrayID].scriptTimeAtSave>(currentTime.getTime()-vehicles[arrayID].realTimeAtSave.getTime())/1000)
+								vehicles[arrayID].jumped = true;
+								vehicles[arrayID].storedScriptTime = vehicles[arrayID].lasterScriptTime;
+							}
+							if (vehicles[arrayID].jumped) {
+								vehicles[arrayID].crashed = true; 
+							}
+							
 						}
 
 						else {//if this vehicle is new
-							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":true,"lastScriptTime":value.scriptTime,"lasterScriptTime":value.scriptTime,"storedScriptTime":0,"averageLineError":0,"crashed":false};
+							var vehicle = {"id":veh_id,"time":value.scriptTime,"name":"unknown","playing":true,"lastScriptTime":value.scriptTime,"lasterScriptTime":value.scriptTime,"storedScriptTime":0,"averageLineError":0,"crashed":false,"scriptTimeAtSave":value.scriptTime,"realTimeAtSave":new Date(),"jumped":false};
 							vehicles.push(vehicle); //add the new vehicle to the array
 							//reading in the vehicles name from Beamng Engine Lua
 							bngApi.engineLua('scenetree.findObject(' + veh_id.toString() +'):getJBeamFilename()', function(name){
@@ -181,6 +210,9 @@ angular.module('beamng.apps')
 				for (i = 0; i < tempVehicles.length; i++) {
 					if (vehicles[i].crashed) {
 						tempVehicles[i].time = vehicles[i].storedScriptTime;
+					}
+					if (vehicles[i].crashed&&vehicles[i].jumped) {
+						tempVehicles[i].time = 0;
 					}
 				}
 				//-----------------------------------------------------------
