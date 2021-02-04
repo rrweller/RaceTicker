@@ -162,7 +162,7 @@ angular.module('beamng.apps')
 							}
 							
 							//if the vehicle jumped in time, set it to crashed
-							if (scripTimeJumpTimer == jumpDetInterval) {
+							if (scriptTimeJumpTimer == jumpDetInterval) {
 								if (vehicles[arrayID].scriptTime-vehicles[arrayID].scriptTimeAtSave>(currentTime.getTime()-vehicles[arrayID].realTimeAtSave.getTime())/1000+5)
 								vehicles[arrayID].jumped = true;
 								vehicles[arrayID].storedScriptTime = vehicles[arrayID].lasterScriptTime;
