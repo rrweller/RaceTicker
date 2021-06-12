@@ -18,7 +18,9 @@ var numberOfCars;
 var prevVehLength;
 
 var lineEnd;
-var numLaps = 0;
+var totalNumLaps = 0;
+var completedNumLaps = 0;
+var lapLength= 10000000;
 
 var scriptTimeJumpTimer = 0;
 var currentTime
@@ -76,8 +78,8 @@ angular.module('beamng.apps')
 			negLap.style.order = "1";
 			//neglap.style.alignSelf="center";
 			negLap.addEventListener("click",function(){
-				if(numLaps > 0){
-					numLaps = numLaps - 1;
+				if(totalNumLaps > 0){
+					totalNumLaps = totalNumLaps - 1;
 				}
 			});
 			
@@ -93,7 +95,7 @@ angular.module('beamng.apps')
 			posLap.className = "lapBTN";
 			posLap.style.order = "3";
 			posLap.addEventListener("click",function(){
-				numLaps = numLaps + 1;
+				totalNumLaps = totalNumLaps + 1;
 			});
 		//-----------------------------------------------------------
 				
@@ -225,9 +227,11 @@ angular.module('beamng.apps')
 				}
 				//-----------------------------------------------------------
 				
-				
+				//calculate completed Laps
+				lapLength= lineEnd/totalNumLaps;
+				completedNumLaps=round(vehiclesSorted[0].time/lapLength);
 				//update top buttons
-				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + numLaps + " Laps" + "</span>";
+				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + completedNumLaps + " / " + totalNumLaps + " Laps" + "</span>";
 				laps.appendChild(laptextbox);
 				
 				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Display Fuel?" + "</span>";
