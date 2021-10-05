@@ -26,7 +26,7 @@ var scriptTimeJumpTimer = 0;
 var currentTime
 
 angular.module('beamng.apps')
-.directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
+.directive('raceTicker', [function () {
   return {
     template:  
 		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column" layout-align="top left" class="bngApp">
@@ -229,7 +229,7 @@ angular.module('beamng.apps')
 				
 				//calculate completed Laps
 				lapLength= lineEnd/totalNumLaps;
-				completedNumLaps=round(vehiclesSorted[0].time/lapLength);
+				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength);
 				//update top buttons
 				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + completedNumLaps + " / " + totalNumLaps + " Laps" + "</span>";
 				laps.appendChild(laptextbox);
