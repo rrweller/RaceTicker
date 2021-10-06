@@ -229,7 +229,7 @@ angular.module('beamng.apps')
 				
 				//calculate completed Laps
 				lapLength= lineEnd/totalNumLaps;
-				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength);
+				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength+0.5);
 				//update top buttons
 				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + completedNumLaps + " / " + totalNumLaps + " Laps" + "</span>";
 				laps.appendChild(laptextbox);
