@@ -18,13 +18,15 @@ var numberOfCars;
 var prevVehLength;
 
 var lineEnd;
-var numLaps = 0;
+var totalNumLaps = 0;
+var completedNumLaps = 0;
+var lapLength= 10000000;
 
 var scriptTimeJumpTimer = 0;
 var currentTime
 
 angular.module('beamng.apps')
-.directive('raceTicker', ['bngApi', 'StreamsManager', function (bngApi, StreamsManager) {
+.directive('raceTicker', [function () {
   return {
     template:  
 		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column" layout-align="top left" class="bngApp">
@@ -76,8 +78,8 @@ angular.module('beamng.apps')
 			negLap.style.order = "1";
 			//neglap.style.alignSelf="center";
 			negLap.addEventListener("click",function(){
-				if(numLaps > 0){
-					numLaps = numLaps - 1;
+				if(totalNumLaps > 0){
+					totalNumLaps = totalNumLaps - 1;
 				}
 			});
 			
@@ -93,7 +95,7 @@ angular.module('beamng.apps')
 			posLap.className = "lapBTN";
 			posLap.style.order = "3";
 			posLap.addEventListener("click",function(){
-				numLaps = numLaps + 1;
+				totalNumLaps = totalNumLaps + 1;
 			});
 		//-----------------------------------------------------------
 				
@@ -225,9 +227,11 @@ angular.module('beamng.apps')
 				}
 				//-----------------------------------------------------------
 				
-				
+				//calculate completed Laps
+				lapLength= lineEnd/totalNumLaps;
+				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength+0.5);
 				//update top buttons
-				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + numLaps + " Laps" + "</span>";
+				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + completedNumLaps + " / " + totalNumLaps + " Laps" + "</span>";
 				laps.appendChild(laptextbox);
 				
 				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Display Fuel?" + "</span>";
@@ -258,18 +262,18 @@ angular.module('beamng.apps')
 					let isBold = false;
 					
 					if (playerFocusID == vehiclesSorted[i].id ){
-						carText+="<b>";
+						carText+="<b><i>";
 						isBold = true;
 					}
 					if (vehiclesSorted[i].crashed){
-						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
+						carText += '<span style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
 					} else if (!fuelcheck.checked){
 						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
 					} else if (fuelcheck.checked){
 						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + "          " + "Fuel left: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
 					}
 					if (isBold){
-						carText += "</b>";
+						carText += "</b></i>";
 					}
 					
 					document.getElementById(i).innerHTML = carText;
