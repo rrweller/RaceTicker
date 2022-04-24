@@ -247,7 +247,7 @@ angular.module('beamng.apps')
 				lapLength= lineEnd/totalNumLaps;
 				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength+0.5);
 				//update top buttons
-				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + "Lap " + completedNumLaps + " / " + totalNumLaps + "</span>";
+				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + "Lap " + completedNumLaps + " / " + totalNumLaps "</span>";
 				laps.appendChild(laptextbox);
 				
 				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Show Fuel?" + "</span>";
