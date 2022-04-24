@@ -285,15 +285,16 @@ angular.module('beamng.apps')
 						isBold = true;
 					}
 					
-					//format crashed cars
+					//-----format crashed cars-----
 					if (vehiclesSorted[i].crashed && !lapsdown.checked){
 						carText += '<span style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
 					} else if (vehiclesSorted[i].crashed && lapsdown.checked){
 						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</span>"
 					}
 					
-					//default time behind mode
+					//-----default time behind mode-----
 					if (!lapsdown.checked){
+						//saves the full line, with or without the fuel remaining
 						if(!fuelcheck.checked){
 							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
 						}else{
@@ -301,7 +302,7 @@ angular.module('beamng.apps')
 						}
 					}
 					
-					//switch to laps down mode
+					//-----switch to laps down mode-----
 					if (lapsdown.checked){ 		
 						var timeBehind = vehiclesSorted[0].time - vehiclesSorted[i].time;
 						var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
@@ -311,7 +312,7 @@ angular.module('beamng.apps')
 						//math for the lead car label
 						if(lapsComplete > 0 && lapsComplete <= totalNumLaps*0.5){		//for first half of race, label lead car as Lap X of Y
 								leadCarText = " Lap " + lapsComplete + " of " + totalNumLaps;
-							}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){	//for second half of the race, except on the final lap, label as X laps to go
+							}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){		//for second half of the race, except on the final lap, label as X laps to go
 								leadCarText = (totalNumLaps - lapsComplete + 1) + " Laps to go";
 							}else if(lapsComplete > 0 && (totalNumLaps == lapsComplete)){
 								leadCarText = " Final Lap";
@@ -328,10 +329,11 @@ angular.module('beamng.apps')
 							remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time)/lapLength) + " Laps";
 						}
 						
-						if(fuelcheck.checked){
-							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>" + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
-						}else{
+						//saves the full line, with or without the fuel remaining
+						if(!fuelcheck.checked){
 							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>";
+						}else{
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>" + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
 						}
 					} 
 					
