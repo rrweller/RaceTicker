@@ -293,7 +293,7 @@ angular.module('beamng.apps')
 					}
 					
 					//-----default time behind mode-----
-					if (!lapsdown.checked){
+					else if (!lapsdown.checked){
 						//saves the full line, with or without the fuel remaining
 						if(!fuelcheck.checked){
 							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
@@ -303,7 +303,7 @@ angular.module('beamng.apps')
 					}
 					
 					//-----switch to laps down mode-----
-					if (lapsdown.checked){ 		
+					else if (lapsdown.checked){ 		
 						var timeBehind = vehiclesSorted[0].time - vehiclesSorted[i].time;
 						var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
 						var leadCarText = "";
