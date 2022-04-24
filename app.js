@@ -285,17 +285,24 @@ angular.module('beamng.apps')
 						isBold = true;
 					}
 					
+					//format crashed cars
 					if (vehiclesSorted[i].crashed && !lapsdown.checked){
 						carText += '<span style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
 					} else if (vehiclesSorted[i].crashed && lapsdown.checked){
 						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</span>"
-					} else if (!fuelcheck.checked && !lapsdown.checked){
-						//display time behind leader and no fuel
-						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
-					} else if (fuelcheck.checked && !lapsdown.checked){
-						//display time behind leader and fuel remaining
-						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
-					} else if (lapsdown.checked){ 		//switch to laps down mode
+					}
+					
+					//default time behind mode
+					if (!lapsdown.checked){
+						if(!fuelcheck.checked){
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
+						}else{
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
+						}
+					}
+					
+					//switch to laps down mode
+					if (lapsdown.checked){ 		
 						var timeBehind = vehiclesSorted[0].time - vehiclesSorted[i].time;
 						var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
 						var leadCarText = "";
