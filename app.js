@@ -28,14 +28,38 @@ var currentTime
 angular.module('beamng.apps')
 .directive('raceTicker', [function () {
   return {
-    template:  
-		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column" layout-align="top left" class="bngApp">
+    template:
+		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column"; layout-align="top left"; class="bngApp">
 		<div id="leaderboard"></div></body>
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
+		<div id="Settings" class="settings">
+			<div class="content"></div>
+		</div></body>
 		<div id="cars"></div></body>
-		<style> .top {background-color:rgba(100,100,100,0.2);color:white;border: 3px solid white; width: 100%;text-align: center;}</style>
-		<style> .laps {display:flex; flex-direction:row; align-items: center; background-color:rgba(100,100,100,0.2); color:white; border: 1px solid white; width: 100%;text-align: right;}</style>
+		<style> .top {
+			display: flex; 
+			background-color: #d98934;
+			height: 40px;
+			width: 100%; 
+			border: 3px solid white; 
+			font-size: 24px; 
+			color:white;
+			align-items:center;
+			justify-content:center;
+		}</style>
+		
+		<style> .laps {
+			display: flex; 
+			flex-direction:row; 
+			align-items: center; 
+			background-color:rgba(100,100,100,0.2); 
+			color:white; 
+			border: 1px solid white; 
+			width: 100%;
+			text-align: right;
+		}</style>
+		
 		<style> .lapBTN {
 			border-radius: 1px;
 			color: #ffffff;
@@ -44,6 +68,30 @@ angular.module('beamng.apps')
 			padding: 3px 5px 3px 5px;
 			border: solid #ffffff 1px;
 			}</style>
+			
+		<style> 
+		.collapsible {
+			background-color: #777;
+			color: white;
+			cursor: pointer;
+			padding: 18px;
+			width: 100%;
+			border: none;
+			text-align: left;
+			outline: none;
+			font-size: 15px;
+		}
+		.active, .collapsible:hover {
+		background-color: #555;
+		}
+		.content {
+		padding: 0 18px;
+		display: none;
+		overflow: hidden;
+		background-color: #f1f1f1;
+		}
+		</style>
+			
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
 		<style> span {pointer-events: none;}</style>
@@ -53,6 +101,12 @@ angular.module('beamng.apps')
 	
     
 	link: function (scope, element, attrs) {
+		var streamsList = ['engineInfo']
+      StreamsManager.add(streamsList)
+      scope.$on('$destroy', function () {
+        StreamsManager.remove(streamsList)
+      })
+		
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		bngApi.engineLua('fuel_table = {}');
@@ -60,14 +114,9 @@ angular.module('beamng.apps')
 		numberOfCars = 0;
 		
 		//Top UI Stuff =============================
-		
-		//initalize images
-		fuelimg = document.createElement('img');
-		fuelimg.src = 'fuel.png';
 			
 		//format top of leaderboard
-			var top = document.getElementById("top");
-			document.getElementById("top").innerHTML = '<b><span style="font-size:24px;">' + "AIT AI Race Leaderboard<br>" + "</span>";
+			var top = document.getElementById("top").innerHTML = "<p>" + "AIT AI Race Leaderboard" + "</p>";
 		//-----------------------------------------------------------
 				
 		//subtract a lap button
@@ -128,7 +177,12 @@ angular.module('beamng.apps')
 			laps.appendChild(lapsdownlabel);
 			lapsdown.style.order = "6";
 			lapsdownlabel.style.order = "7";
-			
+		
+		//Create the settings collapsible
+		/*var settingsbtn = document.createElement("button");
+		Settings.appendChild(collapsible);
+		settingsbtn.className = "settBTN";
+		settingsbtn.innerHTML = "<p>" + "Settings!" + "</p>";*/
 			
 			
 		//Top UI Stuff end ===================================
@@ -235,6 +289,23 @@ angular.module('beamng.apps')
 				}
 				//-----------------------------------------------------------
 				
+				//js for settings collapsible
+				/*var settingsColl = document.getElementsByClassName("collapsible");
+				var i;
+				
+				for(i = 0; i < coll.length; i++)
+					{
+						settingsColl[i].addEventListener("click", function() {
+							this.classList.toggle("active");
+							var content = this.nextElementSibling;
+							if (content.style.display === "block") {
+								content.style.display = "none";
+							} else {
+								content.style.display = "block";
+							}
+						});
+					}*/
+				
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length !== prevVehLength) {
@@ -287,9 +358,9 @@ angular.module('beamng.apps')
 					
 					//-----format crashed cars-----
 					if (vehiclesSorted[i].crashed && !lapsdown.checked){
-						carText += '<span style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
+						carText += '<p style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</p>";
 					} else if (vehiclesSorted[i].crashed && lapsdown.checked){
-						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</span>"
+						carText += '<p style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<p style=\"color:white;\">" + vehiclesSorted[i].name + "<p style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</p>"
 					}
 					
 					//-----default time behind mode-----
@@ -359,7 +430,7 @@ angular.module('beamng.apps')
 			debug("player wants to jump to car at pos "+pos)
 			bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+vehiclesSorted[pos-1].id+'))');
 		}
-	
+
 	}
   };
 }])
