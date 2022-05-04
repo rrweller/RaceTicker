@@ -51,7 +51,7 @@ angular.module('beamng.apps')
 		
 		<style> .laps {
 			display: flex; 
-			flex-direction:row; 
+			flex-direction:row;
 			align-items: center; 
 			background-color:rgba(100,100,100,0.2); 
 			color:white; 
@@ -94,18 +94,23 @@ angular.module('beamng.apps')
 			
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
-		<style> span {pointer-events: none;}</style>
+		<style> .span {pointer-events: none;}</style>
 		`,
     replace: true,
     restrict: 'EA',
 	
     
 	link: function (scope, element, attrs) {
-		var streamsList = ['engineInfo']
-      StreamsManager.add(streamsList)
-      scope.$on('$destroy', function () {
-        StreamsManager.remove(streamsList)
-      })
+		// An optional list of streams that will be used in the app
+		var streamsList = ['engineInfo'];
+
+		// Make the needed streams available.
+		StreamsManager.add(streamsList);
+	  
+		// Make sure we clean up after closing the app.
+		scope.$on('$destroy', function () {
+			StreamsManager.remove(streamsList);
+		});
 		
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
