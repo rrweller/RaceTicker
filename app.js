@@ -29,7 +29,14 @@ angular.module('beamng.apps')
 .directive('raceTicker', [function () {
   return {
     template:
-		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column"; layout-align="top left"; class="bngApp">
+		`<body><div style="
+			width:100%; 
+			height:100%;
+			overflow-x: hidden; 
+			overflow-y: scroll;
+			layout="column; 
+			layout-align=top left; 
+			class="bngApp">
 		<div id="leaderboard"></div></body>
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
@@ -41,7 +48,7 @@ angular.module('beamng.apps')
 			display: flex; 
 			background-color: #d98934;
 			height: 40px;
-			width: 100%; 
+			width: 99%; 
 			border: 3px solid white; 
 			font-size: 24px; 
 			color:white;
@@ -51,12 +58,12 @@ angular.module('beamng.apps')
 		
 		<style> .laps {
 			display: flex; 
-			flex-direction:row;
 			align-items: center; 
 			background-color:rgba(100,100,100,0.2); 
 			color:white; 
 			border: 1px solid white; 
 			width: 100%;
+			height: 30px;
 			text-align: right;
 		}</style>
 		
@@ -68,32 +75,21 @@ angular.module('beamng.apps')
 			padding: 3px 5px 3px 5px;
 			border: solid #ffffff 1px;
 			}</style>
-			
-		<style> 
-		.collapsible {
-			background-color: #777;
-			color: white;
-			cursor: pointer;
-			padding: 18px;
+		
+		<style> .cars {
 			width: 100%;
-			border: none;
-			text-align: left;
-			outline: none;
-			font-size: 15px;
-		}
-		.active, .collapsible:hover {
-		background-color: #555;
-		}
-		.content {
-		padding: 0 18px;
-		display: none;
-		overflow: hidden;
-		background-color: #f1f1f1;
-		}
-		</style>
+			height: 26px; 
+			display: flex;
+			background-color:rgba(100,100,100,0.5);
+			border: 1px solid white;
+			color: white;
+			font-size: 16px;
+			width: 100%;
+			align-items:center;
+			justify-content:left;
+		}</style>
 			
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
 		<style> .span {pointer-events: none;}</style>
 		`,
     replace: true,
@@ -311,6 +307,7 @@ angular.module('beamng.apps')
 						});
 					}*/
 				
+				//-----------------------------------------------------------
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length !== prevVehLength) {
@@ -331,8 +328,8 @@ angular.module('beamng.apps')
 				
 				lapsdownlabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Laps mode" + "</span>";
 				laps.appendChild(lapsdownlabel);
-				//-----------------------------------------------------------
 				
+				//-----------------------------------------------------------
 				
 				//make a button for every car
 				for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
@@ -341,18 +338,100 @@ angular.module('beamng.apps')
 					button.innerHTML = "If you see this, it means that Oren did something wrong in the code of the clickable cars";
 					var leaderboard = document.getElementById("cars");
 					leaderboard.appendChild(button);
-					button.className  = "car";
+					button.className  = "cars";
 					button.id = numberOfCars;
-					button.value = (numberOfCars+1);//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
-					button.addEventListener("click",function(){ //on click, jump to the car that that is in the position that is the value of the button
+					button.value = (numberOfCars+1);		//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
+					button.addEventListener("click",function(){ 		//on click, jump to the car that that is in the position that is the value of the button
 							scope.jumpToCarPos(parseInt((this.value)));
 					});
 						
 				}
 				
+				//-----------------------------------------------------------
+				
 				prevVehLength= vehicles.length;
-				var i;
+				
+				//add content to each car button
 				for (i = 0; i < vehiclesSorted.length; i++) {
+					//set initial content to be the position
+					carText = '<p style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + '</p>';
+					
+					//add the car name
+					carText += carName(vehiclesSorted[i].name);
+					
+
+					document.getElementById(i).innerHTML = carText;	//apply the car and iterate to the next one
+				}
+				
+				if (numberOfCars == 0){
+					document.getElementById("cars").innerHTML = leaderboardFormatted
+				}
+				
+		});//end of scope.$on('streamsUpdate'...)
+		
+		scope.jumpToCarPos = function(pos){
+			debug("player wants to jump to car at pos "+pos)
+			bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+vehiclesSorted[pos-1].id+'))');
+		}
+
+	}//end of link: function(scope, element, arrts)
+	
+  };//end of return
+  
+}]);//end of .directive
+
+//-----------------------------------------------------------
+//Car functions
+
+//creates and formats the car name portion of the car div
+function carName(name){
+	var formName = '<p style=\"color:white;\">' + name + '</p>';
+	return formName;
+}
+
+
+//-----------------------------------------------------------
+//Auxillary functions
+function debug(str){
+	todebug = ""+str;
+	
+}
+
+//returns a vehicle with a given ID
+function getVehicleByID(id){
+	let index = vehicles.findIndex((vehicle => vehicle.id === id));
+	return vehicles[index]
+}
+
+//sets all .playing values to false
+function setPlayingFalse(){
+	var i;
+	if (vehicles.length > 0) {
+		for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
+			if (vehicles[i].playing){
+				vehicles[i].playing = false;
+			}
+		}
+	}
+}
+
+//removes vehicles from array if they do not have .playing = true
+function removeIdleVehicles() {
+	var i;
+	if (vehicles.length > 0){
+	for (i = 0; i < vehicles.length; i++) {
+		if (!vehicles[i].playing){
+				vehicles.splice(i,1);
+				leaderboardFormatted= "Start line to start leaderboard";
+			}
+		}
+	}
+}
+
+
+
+/*
+for (i = 0; i < vehiclesSorted.length; i++) {
 					let carText ="";
 					let isBold = false;
 					
@@ -424,54 +503,4 @@ angular.module('beamng.apps')
 					//}
 
 				}
-				
-				if (numberOfCars == 0){
-					document.getElementById("cars").innerHTML = leaderboardFormatted
-				}
-				
-		});
-		
-		scope.jumpToCarPos = function(pos){
-			debug("player wants to jump to car at pos "+pos)
-			bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+vehiclesSorted[pos-1].id+'))');
-		}
-
-	}
-  };
-}])
-
-function debug(str){
-	todebug = ""+str;
-	
-}
-
-//returns a vehicle with a given ID
- function getVehicleByID(id){
-	let index = vehicles.findIndex((vehicle => vehicle.id === id));
-	return vehicles[index]
-}
-
-//sets all .playing values to false
-function setPlayingFalse(){
-	var i;
-	if (vehicles.length > 0) {
-		for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
-			if (vehicles[i].playing){
-				vehicles[i].playing = false;
-			}
-		}
-	}
-}
-
-//removes vehicles from array if they do not have .playing = true
-function removeIdleVehicles() {
-	var i;
-	if (vehicles.length > 0){
-	for (i = 0; i < vehicles.length; i++) {
-		if (!vehicles[i].playing){
-				vehicles.splice(i,1);
-				leaderboardFormatted= "Start line to start leaderboard";
-			}
-		}
-	}
-}
+*/
