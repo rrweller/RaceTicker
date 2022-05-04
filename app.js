@@ -86,11 +86,8 @@ angular.module('beamng.apps')
 			font-size: 16px;
 			width: 100%;
 			align-items:center;
-			justify-content:left;
 		}</style>
-			
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .span {pointer-events: none;}</style>
 		`,
     replace: true,
     restrict: 'EA',
@@ -117,7 +114,7 @@ angular.module('beamng.apps')
 		//Top UI Stuff =============================
 			
 		//format top of leaderboard
-			var top = document.getElementById("top").innerHTML = "<p>" + "AIT AI Race Leaderboard" + "</p>";
+			var topBar = document.getElementById("top").innerHTML = "<p>" + "AIT AI Race Leaderboard" +"</p>";
 		//-----------------------------------------------------------
 				
 		//subtract a lap button
@@ -178,17 +175,8 @@ angular.module('beamng.apps')
 			laps.appendChild(lapsdownlabel);
 			lapsdown.style.order = "6";
 			lapsdownlabel.style.order = "7";
-		
-		//Create the settings collapsible
-		/*var settingsbtn = document.createElement("button");
-		Settings.appendChild(collapsible);
-		settingsbtn.className = "settBTN";
-		settingsbtn.innerHTML = "<p>" + "Settings!" + "</p>";*/
-			
-			
 		//Top UI Stuff end ===================================
 		
-
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -288,24 +276,6 @@ angular.module('beamng.apps')
 						tempVehicles[i].time = 0;
 					}
 				}
-				//-----------------------------------------------------------
-				
-				//js for settings collapsible
-				/*var settingsColl = document.getElementsByClassName("collapsible");
-				var i;
-				
-				for(i = 0; i < coll.length; i++)
-					{
-						settingsColl[i].addEventListener("click", function() {
-							this.classList.toggle("active");
-							var content = this.nextElementSibling;
-							if (content.style.display === "block") {
-								content.style.display = "none";
-							} else {
-								content.style.display = "block";
-							}
-						});
-					}*/
 				
 				//-----------------------------------------------------------
 				//formatting information for leaderboard
@@ -326,7 +296,7 @@ angular.module('beamng.apps')
 				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Show Fuel?" + "</span>";
 				laps.appendChild(fuellabel);
 				
-				lapsdownlabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Laps mode" + "</span>";
+				lapsdownlabel.innerHTML = '<span style="font-size:14px; color:white;">' + (lapsdown.checked? "Show Laps" : "Show %") + "</span>";
 				laps.appendChild(lapsdownlabel);
 				
 				//-----------------------------------------------------------
@@ -352,14 +322,32 @@ angular.module('beamng.apps')
 				prevVehLength= vehicles.length;
 				
 				//add content to each car button
+				
 				for (i = 0; i < vehiclesSorted.length; i++) {
-					//set initial content to be the position
-					carText = '<p style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + '</p>';
+					let isBold = false;
+					let carText = "";
+					if (playerFocusID == vehiclesSorted[i].id ){
+						carText+="<b><i>";
+						isBold = true;
+					}
+					
+					//format each car button as the following					
+					carText += '<div style="display: inline-block; color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " +'</div>';
 					
 					//add the car name
-					carText += carName(vehiclesSorted[i].name);
+					carText += carName(i);
 					
-
+					//add the time or laps behind
+					carText += carTime(i);
+					
+					//add fuel remaining
+					if(fuelcheck.checked)
+						carText += carFuel(i);
+					
+					if (isBold){
+						carText += "</b></i>";
+					}
+					
 					document.getElementById(i).innerHTML = carText;	//apply the car and iterate to the next one
 				}
 				
@@ -373,22 +361,74 @@ angular.module('beamng.apps')
 			debug("player wants to jump to car at pos "+pos)
 			bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+vehiclesSorted[pos-1].id+'))');
 		}
+		
+	//-----------------------------------------------------------
+	//Car functions
 
+	//creates and formats the car name portion of the car button
+	function carName(j){
+		if(vehiclesSorted[j].crashed){
+			return '<div style="display: inline-block; color:#ff5c38;">'+ vehiclesSorted[j].name + "</div>";
+		} else if (!vehiclesSorted[j].crashed){
+			return "<div style=\"display: inline-block; color:white;\">" + vehiclesSorted[j].name + "</div>";
+		}
+	}
+	
+	//creates and formats the car time of the car button depending on which mode is selected
+	function carTime(j){
+		//-----Laps down mode-----
+		if(lapsdown.checked){
+			var timeBehind = vehiclesSorted[0].time - vehiclesSorted[j].time;
+			var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
+			var leadCarText = "";
+			var remainingCarText = "test";
+			
+			//math for the lead car label
+			if(lapsComplete > 0 && lapsComplete <= totalNumLaps*0.5){		//for first half of race, label lead car as Lap X of Y
+				leadCarText = " Lap " + lapsComplete + " of " + totalNumLaps;
+			}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){		//for second half of the race, except on the final lap, label as X laps to go
+				leadCarText = (totalNumLaps - lapsComplete + 1) + " Laps to go";
+			}else if(lapsComplete > 0 && (totalNumLaps == lapsComplete)){
+				leadCarText = " Final Lap";
+			}
+							
+			//math for all other cars labels
+			lapsBehind = Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time) / lapLength);
+			
+			if(lapsBehind == 0){		//if car is on the lead lap
+				remainingCarText = "+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[j].time)*100)/100).toFixed(2) + "s";
+			}else if(lapsBehind == 1){	//if it is one lap down
+				remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time)/lapLength) + " Lap";
+			}else if(lapsBehind > 1){	//if it is more than one lap down
+				remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time)/lapLength) + " Laps";
+			}
+			
+			//return correct content
+			if(j==0)
+				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + leadCarText + "</div>";
+			else 
+				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + remainingCarText + "</div>";
+		}else{
+		//-----Time down mode-----
+			if(j==0)
+				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</div>";
+			else
+				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[j].time)*100)/100).toFixed(2)+"s" +  "</div>";
+		}
+	}
+	
+	//adds the fuel portion of the car button if needed
+	function carFuel(j){
+		return "<div style=\"display: inline-block; color: yellow; margin: 1px 5px 1px 5px;\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</div>";
+	}
+	
+	//-----------------------------------------------------------
+	
 	}//end of link: function(scope, element, arrts)
 	
   };//end of return
   
 }]);//end of .directive
-
-//-----------------------------------------------------------
-//Car functions
-
-//creates and formats the car name portion of the car div
-function carName(name){
-	var formName = '<p style=\"color:white;\">' + name + '</p>';
-	return formName;
-}
-
 
 //-----------------------------------------------------------
 //Auxillary functions
