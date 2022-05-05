@@ -1,30 +1,3 @@
-//config
-//these remove the car from the leaderboard
-var errorTolerance= 5; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
-var errorCounterSensitivity = 5; //how quickly a car gets yeeted when it goes off line, lower values = quicker
-var jumpDetInterval = 10;
-//config end
-
-
-var playerFocusID; //the ID of the car that the player looks at
-var todebug ="";
-
-var vehicles = [];
-var tempVehicles = [];
-var vehiclesSorted = [];
-var leaderboardFormatted= "Start line to start leaderboard";
-
-var numberOfCars;
-var prevVehLength;
-
-var lineEnd;
-var totalNumLaps = 0;
-var completedNumLaps = 0;
-var lapLength= 10000000;
-
-var scriptTimeJumpTimer = 0;
-var currentTime
-
 angular.module('beamng.apps')
 .directive('raceTicker', [function () {
   return {
@@ -94,6 +67,33 @@ angular.module('beamng.apps')
 	
     
 	link: function (scope, element, attrs) {
+		//config
+		//these remove the car from the leaderboard if it cheats
+		var errorTolerance= 5; //how far a car can go off line before it gets yeeted after it crashes, if the value is too low cars that are still running the line will get removed.
+		var errorCounterSensitivity = 5; //how quickly a car gets yeeted when it goes off line, lower values = quicker
+		var jumpDetInterval = 10; //how fast a car has to jump for it to be counted as a cheater. 
+		//config end
+
+
+		var playerFocusID; //the ID of the car that the player looks at
+		var todebug ="";
+
+		var vehicles = [];
+		var tempVehicles = [];
+		var vehiclesSorted = [];
+		var leaderboardFormatted= "Start line to start leaderboard";
+
+		var numberOfCars;
+		var prevVehLength;
+
+		var lineEnd;
+		var totalNumLaps = 0;
+		var completedNumLaps = 0;
+		var lapLength= 10000000;
+
+		var scriptTimeJumpTimer = 0;
+		var currentTime
+		
 		// An optional list of streams that will be used in the app
 		var streamsList = ['engineInfo'];
 
@@ -161,7 +161,7 @@ angular.module('beamng.apps')
 			fuelcheck.style.order = "4";
 			fuellabel.style.order = "5";
 			
-		//Create checkbox to show fuel amounts or not
+		//Create checkbox to show Laps Down or not
 			var lapsdown = document.createElement("input");
 			lapsdown.type = "checkbox";
 			lapsdown.name = "lapsdown";
@@ -332,7 +332,7 @@ angular.module('beamng.apps')
 					}
 					
 					//format each car button as the following					
-					carText += '<div style="display: inline-block; color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " +'</div>';
+					carText += '<span style="color:yellow; width:100%;">'+ (i+1) + ": " +'</span>';
 					
 					//add the car name
 					carText += carName(i);
@@ -342,7 +342,7 @@ angular.module('beamng.apps')
 					
 					//add fuel remaining
 					if(fuelcheck.checked)
-						carText += carFuel(i);
+						carText += carFuel(i,(Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1));
 					
 					if (isBold){
 						carText += "</b></i>";
@@ -418,55 +418,51 @@ angular.module('beamng.apps')
 	}
 	
 	//adds the fuel portion of the car button if needed
-	function carFuel(j){
-		return "<div style=\"display: inline-block; color: yellow; margin: 1px 5px 1px 5px;\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</div>";
+	function carFuel(j,fuelPercent){
+		return "<span style=\"display: inline; position:relative; float:right; color: yellow;\">" + " Fuel: "+ fuelPercent +"%" +  "</span>";
 	}
 	
-	//-----------------------------------------------------------
-	
-	}//end of link: function(scope, element, arrts)
-	
-  };//end of return
-  
+	function debug(str){
+		todebug = ""+str;
+		
+	}
+
+	//returns a vehicle with a given ID
+	function getVehicleByID(id){
+		let index = vehicles.findIndex((vehicle => vehicle.id === id));
+		return vehicles[index]
+	}
+
+	//sets all .playing values to false
+	function setPlayingFalse(){
+		var i;
+		if (vehicles.length > 0) {
+			for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
+				if (vehicles[i].playing){
+					vehicles[i].playing = false;
+				}
+			}
+		}
+	}
+
+	//removes vehicles from array if they do not have .playing = true
+	function removeIdleVehicles() {
+		var i;
+		if (vehicles.length > 0){
+		for (i = 0; i < vehicles.length; i++) {
+			if (!vehicles[i].playing){
+					vehicles.splice(i,1);
+					leaderboardFormatted= "Start line to start leaderboard";
+				}
+			}
+		}
+	}
+	}//end of link: function(scope, element, arrts)	
+   };//end of return
 }]);//end of .directive
 
 //-----------------------------------------------------------
 //Auxillary functions
-function debug(str){
-	todebug = ""+str;
-	
-}
-
-//returns a vehicle with a given ID
-function getVehicleByID(id){
-	let index = vehicles.findIndex((vehicle => vehicle.id === id));
-	return vehicles[index]
-}
-
-//sets all .playing values to false
-function setPlayingFalse(){
-	var i;
-	if (vehicles.length > 0) {
-		for (i = 0; i < vehicles.length; i++) { //sets every .playing to false
-			if (vehicles[i].playing){
-				vehicles[i].playing = false;
-			}
-		}
-	}
-}
-
-//removes vehicles from array if they do not have .playing = true
-function removeIdleVehicles() {
-	var i;
-	if (vehicles.length > 0){
-	for (i = 0; i < vehicles.length; i++) {
-		if (!vehicles[i].playing){
-				vehicles.splice(i,1);
-				leaderboardFormatted= "Start line to start leaderboard";
-			}
-		}
-	}
-}
 
 
 
