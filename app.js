@@ -28,14 +28,45 @@ var currentTime
 angular.module('beamng.apps')
 .directive('raceTicker', [function () {
   return {
-    template:  
-		`<body><div style="width:100%; height:100%; overflow: hidden;" layout="column" layout-align="top left" class="bngApp">
+    template:
+		`<body><div style="
+			width:100%; 
+			height:100%;
+			overflow-x: hidden; 
+			overflow-y: scroll;
+			layout="column; 
+			layout-align=top left; 
+			class="bngApp">
 		<div id="leaderboard"></div></body>
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
+		<div id="Settings" class="settings">
+			<div class="content"></div>
+		</div></body>
 		<div id="cars"></div></body>
-		<style> .top {background-color:rgba(100,100,100,0.2);color:white;border: 3px solid white; width: 100%;text-align: center;}</style>
-		<style> .laps {display:flex; flex-direction:row; align-items: center; background-color:rgba(100,100,100,0.2); color:white; border: 1px solid white; width: 100%;text-align: right;}</style>
+		<style> .top {
+			display: flex; 
+			background-color: #d98934;
+			height: 40px;
+			width: 99%; 
+			border: 3px solid white; 
+			font-size: 24px; 
+			color:white;
+			align-items:center;
+			justify-content:center;
+		}</style>
+		
+		<style> .laps {
+			display: flex; 
+			align-items: center; 
+			background-color:rgba(100,100,100,0.2); 
+			color:white; 
+			border: 1px solid white; 
+			width: 100%;
+			height: 30px;
+			text-align: right;
+		}</style>
+		
 		<style> .lapBTN {
 			border-radius: 1px;
 			color: #ffffff;
@@ -44,15 +75,36 @@ angular.module('beamng.apps')
 			padding: 3px 5px 3px 5px;
 			border: solid #ffffff 1px;
 			}</style>
+		
+		<style> .cars {
+			width: 100%;
+			height: 26px; 
+			display: flex;
+			background-color:rgba(100,100,100,0.5);
+			border: 1px solid white;
+			color: white;
+			font-size: 16px;
+			width: 100%;
+			align-items:center;
+		}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
-		<style> .car {background-color:rgba(100,100,100,0.5);color:white;border: 1px solid white; width: 100%;text-align: left;}</style>
-		<style> span {pointer-events: none;}</style>
 		`,
     replace: true,
     restrict: 'EA',
 	
     
 	link: function (scope, element, attrs) {
+		// An optional list of streams that will be used in the app
+		var streamsList = ['engineInfo'];
+
+		// Make the needed streams available.
+		StreamsManager.add(streamsList);
+	  
+		// Make sure we clean up after closing the app.
+		scope.$on('$destroy', function () {
+			StreamsManager.remove(streamsList);
+		});
+		
 		//Creates a Lua global table in GameEngine Lua
 		bngApi.engineLua('script_state_table = {}');
 		bngApi.engineLua('fuel_table = {}');
@@ -60,14 +112,9 @@ angular.module('beamng.apps')
 		numberOfCars = 0;
 		
 		//Top UI Stuff =============================
-		
-		//initalize images
-		fuelimg = document.createElement('img');
-		fuelimg.src = '/modules/apps/RaceTicker/fuel.png';
 			
 		//format top of leaderboard
-			var top = document.getElementById("top");
-			document.getElementById("top").innerHTML = '<b><span style="font-size:24px;">' + "AIT AI Race Leaderboard<br>" + "</span>";
+			var topBar = document.getElementById("top").innerHTML = "<p>" + "AIT AI Race Leaderboard" +"</p>";
 		//-----------------------------------------------------------
 				
 		//subtract a lap button
@@ -114,10 +161,22 @@ angular.module('beamng.apps')
 			fuelcheck.style.order = "4";
 			fuellabel.style.order = "5";
 			
-			
+		//Create checkbox to show fuel amounts or not
+			var lapsdown = document.createElement("input");
+			lapsdown.type = "checkbox";
+			lapsdown.name = "lapsdown";
+			lapsdown.id = "lapsdn";
+				
+			var lapsdownlabel = document.createElement('label');
+			lapsdownlabel.htmlFor = "lapsdn";
+				
+			lapsdownlabel.appendChild(document.createTextNode(''));
+			laps.appendChild(lapsdown);
+			laps.appendChild(lapsdownlabel);
+			lapsdown.style.order = "6";
+			lapsdownlabel.style.order = "7";
 		//Top UI Stuff end ===================================
 		
-
 		//This is called all the time
 		scope.$on('streamsUpdate', function (event, streams) {
 				//This calls GameEngine Lua to tell all Vehicle Luas to insert their serialized ai.scriptState() into the GameEngine Lua script_state_table
@@ -217,8 +276,8 @@ angular.module('beamng.apps')
 						tempVehicles[i].time = 0;
 					}
 				}
-				//-----------------------------------------------------------
 				
+				//-----------------------------------------------------------
 				//formatting information for leaderboard
 				vehiclesSorted = tempVehicles.sort((a,b) => (a.time > b.time) ? -1 : ((b.time > a.time) ? 1 : 0));
 				if (vehicles.length !== prevVehLength) {
@@ -229,15 +288,18 @@ angular.module('beamng.apps')
 				
 				//calculate completed Laps
 				lapLength= lineEnd/totalNumLaps;
-				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength);
+				completedNumLaps=Math.round(vehiclesSorted[0].time/lapLength+0.5);
 				//update top buttons
-				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + completedNumLaps + " / " + totalNumLaps + " Laps" + "</span>";
+				laptextbox.innerHTML = '<span style="font-size:14px; color:white;">' + "Lap " + completedNumLaps + " / " + totalNumLaps + "</span>";
 				laps.appendChild(laptextbox);
 				
-				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Display Fuel?" + "</span>";
+				fuellabel.innerHTML = '<span style="font-size:14px; color:white;">' + "Show Fuel?" + "</span>";
 				laps.appendChild(fuellabel);
-				//-----------------------------------------------------------
 				
+				lapsdownlabel.innerHTML = '<span style="font-size:14px; color:white;">' + (lapsdown.checked? "Show Laps" : "Show %") + "</span>";
+				laps.appendChild(lapsdownlabel);
+				
+				//-----------------------------------------------------------
 				
 				//make a button for every car
 				for (;numberOfCars<vehiclesSorted.length;numberOfCars++){
@@ -246,66 +308,137 @@ angular.module('beamng.apps')
 					button.innerHTML = "If you see this, it means that Oren did something wrong in the code of the clickable cars";
 					var leaderboard = document.getElementById("cars");
 					leaderboard.appendChild(button);
-					button.className  = "car";
+					button.className  = "cars";
 					button.id = numberOfCars;
-					button.value = (numberOfCars+1);//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
-					button.addEventListener("click",function(){ //on click, jump to the car that that is in the position that is the value of the button
+					button.value = (numberOfCars+1);		//the value represents the position that the button represents, numberOfCars starting from 0, positions from 1
+					button.addEventListener("click",function(){ 		//on click, jump to the car that that is in the position that is the value of the button
 							scope.jumpToCarPos(parseInt((this.value)));
 					});
 						
 				}
 				
+				//-----------------------------------------------------------
+				
 				prevVehLength= vehicles.length;
-				var i;
+				
+				//add content to each car button
+				
 				for (i = 0; i < vehiclesSorted.length; i++) {
-					let carText ="";
 					let isBold = false;
-					
+					let carText = "";
 					if (playerFocusID == vehiclesSorted[i].id ){
-						carText+="<b>";
+						carText+="<b><i>";
 						isBold = true;
 					}
-					if (vehiclesSorted[i].crashed){
-						carText += '<span style="color:red; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</span>";
-					} else if (!fuelcheck.checked){
-						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
-					} else if (fuelcheck.checked){
-						carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% remaining" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + "          " + "Fuel left: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
-					}
+					
+					//format each car button as the following					
+					carText += '<div style="display: inline-block; color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " +'</div>';
+					
+					//add the car name
+					carText += carName(i);
+					
+					//add the time or laps behind
+					carText += carTime(i);
+					
+					//add fuel remaining
+					if(fuelcheck.checked)
+						carText += carFuel(i);
+					
 					if (isBold){
-						carText += "</b>";
+						carText += "</b></i>";
 					}
 					
-					document.getElementById(i).innerHTML = carText;
-					if(fuelcheck.checked)
-					{
-						document.getElementById(i).appendChild(fuelimg);
-					}
-
+					document.getElementById(i).innerHTML = carText;	//apply the car and iterate to the next one
 				}
 				
 				if (numberOfCars == 0){
 					document.getElementById("cars").innerHTML = leaderboardFormatted
 				}
 				
-		});
+		});//end of scope.$on('streamsUpdate'...)
 		
 		scope.jumpToCarPos = function(pos){
 			debug("player wants to jump to car at pos "+pos)
 			bngApi.engineLua('be:enterVehicle("0",scenetree.findObject('+vehiclesSorted[pos-1].id+'))');
 		}
-	
-	}
-  };
-}])
+		
+	//-----------------------------------------------------------
+	//Car functions
 
+	//creates and formats the car name portion of the car button
+	function carName(j){
+		if(vehiclesSorted[j].crashed){
+			return '<div style="display: inline-block; color:#ff5c38;">'+ vehiclesSorted[j].name + "</div>";
+		} else if (!vehiclesSorted[j].crashed){
+			return "<div style=\"display: inline-block; color:white;\">" + vehiclesSorted[j].name + "</div>";
+		}
+	}
+	
+	//creates and formats the car time of the car button depending on which mode is selected
+	function carTime(j){
+		//-----Laps down mode-----
+		if(lapsdown.checked){
+			var timeBehind = vehiclesSorted[0].time - vehiclesSorted[j].time;
+			var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
+			var leadCarText = "";
+			var remainingCarText = "test";
+			
+			//math for the lead car label
+			if(lapsComplete > 0 && lapsComplete <= totalNumLaps*0.5){		//for first half of race, label lead car as Lap X of Y
+				leadCarText = " Lap " + lapsComplete + " of " + totalNumLaps;
+			}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){		//for second half of the race, except on the final lap, label as X laps to go
+				leadCarText = (totalNumLaps - lapsComplete + 1) + " Laps to go";
+			}else if(lapsComplete > 0 && (totalNumLaps == lapsComplete)){
+				leadCarText = " Final Lap";
+			}
+							
+			//math for all other cars labels
+			lapsBehind = Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time) / lapLength);
+			
+			if(lapsBehind == 0){		//if car is on the lead lap
+				remainingCarText = "+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[j].time)*100)/100).toFixed(2) + "s";
+			}else if(lapsBehind == 1){	//if it is one lap down
+				remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time)/lapLength) + " Lap";
+			}else if(lapsBehind > 1){	//if it is more than one lap down
+				remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[j].time)/lapLength) + " Laps";
+			}
+			
+			//return correct content
+			if(j==0)
+				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + leadCarText + "</div>";
+			else 
+				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + remainingCarText + "</div>";
+		}else{
+		//-----Time down mode-----
+			if(j==0)
+				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</div>";
+			else
+				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[j].time)*100)/100).toFixed(2)+"s" +  "</div>";
+		}
+	}
+	
+	//adds the fuel portion of the car button if needed
+	function carFuel(j){
+		return "<div style=\"display: inline-block; color: yellow; margin: 1px 5px 1px 5px;\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</div>";
+	}
+	
+	//-----------------------------------------------------------
+	
+	}//end of link: function(scope, element, arrts)
+	
+  };//end of return
+  
+}]);//end of .directive
+
+//-----------------------------------------------------------
+//Auxillary functions
 function debug(str){
 	todebug = ""+str;
 	
 }
 
 //returns a vehicle with a given ID
- function getVehicleByID(id){
+function getVehicleByID(id){
 	let index = vehicles.findIndex((vehicle => vehicle.id === id));
 	return vehicles[index]
 }
@@ -334,3 +467,80 @@ function removeIdleVehicles() {
 		}
 	}
 }
+
+
+
+/*
+for (i = 0; i < vehiclesSorted.length; i++) {
+					let carText ="";
+					let isBold = false;
+					
+					if (playerFocusID == vehiclesSorted[i].id ){
+						carText+="<b><i>";
+						isBold = true;
+					}
+					
+					//-----format crashed cars-----
+					if (vehiclesSorted[i].crashed && !lapsdown.checked){
+						carText += '<p style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</p>";
+					} else if (vehiclesSorted[i].crashed && lapsdown.checked){
+						carText += '<p style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<p style=\"color:white;\">" + vehiclesSorted[i].name + "<p style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</p>"
+					}
+					
+					//-----default time behind mode-----
+					else if (!lapsdown.checked){
+						//saves the full line, with or without the fuel remaining
+						if(!fuelcheck.checked){
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
+						}else{
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
+						}
+					}
+					
+					//-----switch to laps down mode-----
+					else if (lapsdown.checked){ 		
+						var timeBehind = vehiclesSorted[0].time - vehiclesSorted[i].time;
+						var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
+						var leadCarText = "";
+						var remainingCarText = "test";
+						
+						//math for the lead car label
+						if(lapsComplete > 0 && lapsComplete <= totalNumLaps*0.5){		//for first half of race, label lead car as Lap X of Y
+								leadCarText = " Lap " + lapsComplete + " of " + totalNumLaps;
+							}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){		//for second half of the race, except on the final lap, label as X laps to go
+								leadCarText = (totalNumLaps - lapsComplete + 1) + " Laps to go";
+							}else if(lapsComplete > 0 && (totalNumLaps == lapsComplete)){
+								leadCarText = " Final Lap";
+							}
+							
+						//math for all other cars labels
+						lapsBehind = Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time) / lapLength);
+						
+						if(lapsBehind == 0){		//if car is on the lead lap
+							remainingCarText = "+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2) + "s";
+						}else if(lapsBehind == 1){	//if it is one lap down
+							remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time)/lapLength) + " Lap";
+						}else if(lapsBehind > 1){	//if it is more than one lap down
+							remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time)/lapLength) + " Laps";
+						}
+						
+						//saves the full line, with or without the fuel remaining
+						if(!fuelcheck.checked){
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>";
+						}else{
+							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>" + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
+						}
+					} 
+					
+					
+					if (isBold){
+						carText += "</b></i>";
+					}
+					
+					document.getElementById(i).innerHTML = carText;
+					//if(fuelcheck.checked){
+						//document.getElementById(i).appendChild(fuelimg);
+					//}
+
+				}
+*/
