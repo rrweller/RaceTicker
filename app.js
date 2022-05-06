@@ -52,11 +52,11 @@ angular.module('beamng.apps')
 			width: 100%;
 			height: 26px; 
 			display: flex;
-			background-color:rgba(100,100,100,0.5);
-			border: 1px solid white;
-			color: white;
+			background:url(/ui/modules/apps/raceTicker/background.png);
+			border: none;
 			font-size: 16px;
 			width: 100%;
+			text-align: center
 		}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		`,
@@ -329,7 +329,7 @@ angular.module('beamng.apps')
 					}
 					
 					//format each car button as the following. THIS SPAN WRAPS THE ENTIRE BUTTON.					
-				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ (i+1) + ": ";
+				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ '<span style="margin-left: 2px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-size: 20px;">' + (i+1)+ "</span>";
 					
 					//add the car name
 					carText += carName(i);
@@ -363,8 +363,8 @@ angular.module('beamng.apps')
 	//creates and formats the car name portion of the car button
 	function carName(j){
 		if(vehiclesSorted[j].crashed){
-			return '<span style="color:#ff5c38;">'+ vehiclesSorted[j].name + "</span>";
-			return '<span style="color:white;">' + vehiclesSorted[j].name + "</span>";
+			return '<span style="margin-left: 15px; color:#ff5c38;">'+ vehiclesSorted[j].name + "</span>";
+			return '<span style="margin-left: 15px; color:white;">' + vehiclesSorted[j].name + "</span>";
 		}
 	}
 	
@@ -413,7 +413,7 @@ angular.module('beamng.apps')
 	
 	//adds the fuel portion of the car button if needed
 	function carFuel(j,fuelPercent){
-		return '<span style="margin-left: auto; color: yellow;">' + " Fuel: "+ fuelPercent +"%" +  "</span>";
+		return '<span style="margin-left: auto; color: yellow;"> <img style="vertical-align:middle; height:24px; width: 24px; display:inline-block"; src="/ui/modules/apps/raceTicker/fuel.png">' + fuelPercent +"%" +  "</span>";
 	}
 	
 	function debug(str){
