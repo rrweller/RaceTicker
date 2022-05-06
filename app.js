@@ -329,7 +329,7 @@ angular.module('beamng.apps')
 					}
 					
 					//format each car button as the following. THIS SPAN WRAPS THE ENTIRE BUTTON.					
-				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ '<span style="margin-left: 2px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-size: 20px;">' + (i+1)+ "</span>";
+				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ '<span style="margin-left: 3px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-size: 20px;">' + (i+1)+ "</span>";
 					
 					//add the car name
 					carText += carName(i);
