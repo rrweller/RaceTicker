@@ -48,7 +48,6 @@ angular.module('beamng.apps')
 			padding: 3px 5px 3px 5px;
 			border: solid #ffffff 1px;
 			}</style>
-		
 		<style> .cars {
 			width: 100%;
 			height: 26px; 
@@ -58,7 +57,6 @@ angular.module('beamng.apps')
 			color: white;
 			font-size: 16px;
 			width: 100%;
-			align-items:center;
 		}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		`,
@@ -327,12 +325,11 @@ angular.module('beamng.apps')
 					let isBold = false;
 					let carText = "";
 					if (playerFocusID == vehiclesSorted[i].id ){
-						carText+="<b><i>";
 						isBold = true;
 					}
 					
-					//format each car button as the following					
-					carText += '<span style="color:yellow; width:100%;">'+ (i+1) + ": " +'</span>';
+					//format each car button as the following. THIS SPAN WRAPS THE ENTIRE BUTTON.					
+				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ (i+1) + ": ";
 					
 					//add the car name
 					carText += carName(i);
@@ -341,13 +338,11 @@ angular.module('beamng.apps')
 					carText += carTime(i);
 					
 					//add fuel remaining
-					if(fuelcheck.checked)
+					if(fuelcheck.checked){
 						carText += carFuel(i,(Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1));
-					
-					if (isBold){
-						carText += "</b></i>";
 					}
-					
+					//END OF BUTTON SPAN
+					carText+='</span>';	
 					document.getElementById(i).innerHTML = carText;	//apply the car and iterate to the next one
 				}
 				
@@ -368,9 +363,8 @@ angular.module('beamng.apps')
 	//creates and formats the car name portion of the car button
 	function carName(j){
 		if(vehiclesSorted[j].crashed){
-			return '<div style="display: inline-block; color:#ff5c38;">'+ vehiclesSorted[j].name + "</div>";
-		} else if (!vehiclesSorted[j].crashed){
-			return "<div style=\"display: inline-block; color:white;\">" + vehiclesSorted[j].name + "</div>";
+			return '<span style="color:#ff5c38;">'+ vehiclesSorted[j].name + "</span>";
+			return '<span style="color:white;">' + vehiclesSorted[j].name + "</span>";
 		}
 	}
 	
@@ -405,21 +399,21 @@ angular.module('beamng.apps')
 			
 			//return correct content
 			if(j==0)
-				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + leadCarText + "</div>";
+				return '<span style="color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;">' + leadCarText + "</span>";
 			else 
-				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + remainingCarText + "</div>";
+				return '<span style="color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;">' + remainingCarText + "</span>";
 		}else{
 		//-----Time down mode-----
 			if(j==0)
-				return "<div style=\"display: inline-block; color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</div>";
+				return '<span style="color: #3FB0FF; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;">' + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span>";
 			else
-				return "<div style=\"display: inline-block; color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[j].time)*100)/100).toFixed(2)+"s" +  "</div>";
+				return '<span style="color: #ff5c38; font-weight: bold; margin: 1px 5px 1px 5px; font-style: italic;">' + (Math.round((vehiclesSorted[0].time-vehiclesSorted[j].time)*100)/100).toFixed(2)+"s" +  "</span>";
 		}
 	}
 	
 	//adds the fuel portion of the car button if needed
 	function carFuel(j,fuelPercent){
-		return "<span style=\"display: inline; position:relative; float:right; color: yellow;\">" + " Fuel: "+ fuelPercent +"%" +  "</span>";
+		return '<span style="margin-left: auto; color: yellow;">' + " Fuel: "+ fuelPercent +"%" +  "</span>";
 	}
 	
 	function debug(str){
@@ -460,83 +454,3 @@ angular.module('beamng.apps')
 	}//end of link: function(scope, element, arrts)	
    };//end of return
 }]);//end of .directive
-
-//-----------------------------------------------------------
-//Auxillary functions
-
-
-
-/*
-for (i = 0; i < vehiclesSorted.length; i++) {
-					let carText ="";
-					let isBold = false;
-					
-					if (playerFocusID == vehiclesSorted[i].id ){
-						carText+="<b><i>";
-						isBold = true;
-					}
-					
-					//-----format crashed cars-----
-					if (vehiclesSorted[i].crashed && !lapsdown.checked){
-						carText += '<p style="color:#ff5c38; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + vehiclesSorted[i].name + "</p>";
-					} else if (vehiclesSorted[i].crashed && lapsdown.checked){
-						carText += '<p style="color:yellow; margin: 1px 5px 1px 5px;">'+ (i+1) + ": " + "<p style=\"color:white;\">" + vehiclesSorted[i].name + "<p style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + "OUT" + "</p>"
-					}
-					
-					//-----default time behind mode-----
-					else if (!lapsdown.checked){
-						//saves the full line, with or without the fuel remaining
-						if(!fuelcheck.checked){
-							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" +  "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time-vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>";
-						}else{
-							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "      " + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + Math.round((1 - vehiclesSorted[0].time/lineEnd)*100) + "% left" + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2)+"s") +  "</span>"  + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
-						}
-					}
-					
-					//-----switch to laps down mode-----
-					else if (lapsdown.checked){ 		
-						var timeBehind = vehiclesSorted[0].time - vehiclesSorted[i].time;
-						var lapsComplete = Math.ceil(vehiclesSorted[0].time/lapLength);
-						var leadCarText = "";
-						var remainingCarText = "test";
-						
-						//math for the lead car label
-						if(lapsComplete > 0 && lapsComplete <= totalNumLaps*0.5){		//for first half of race, label lead car as Lap X of Y
-								leadCarText = " Lap " + lapsComplete + " of " + totalNumLaps;
-							}else if(lapsComplete > 0 && lapsComplete > totalNumLaps*0.5 && totalNumLaps !== lapsComplete){		//for second half of the race, except on the final lap, label as X laps to go
-								leadCarText = (totalNumLaps - lapsComplete + 1) + " Laps to go";
-							}else if(lapsComplete > 0 && (totalNumLaps == lapsComplete)){
-								leadCarText = " Final Lap";
-							}
-							
-						//math for all other cars labels
-						lapsBehind = Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time) / lapLength);
-						
-						if(lapsBehind == 0){		//if car is on the lead lap
-							remainingCarText = "+" + (Math.round((vehiclesSorted[0].time - vehiclesSorted[i].time)*100)/100).toFixed(2) + "s";
-						}else if(lapsBehind == 1){	//if it is one lap down
-							remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time)/lapLength) + " Lap";
-						}else if(lapsBehind > 1){	//if it is more than one lap down
-							remainingCarText = "+" + Math.floor((vehiclesSorted[0].time - vehiclesSorted[i].time)/lapLength) + " Laps";
-						}
-						
-						//saves the full line, with or without the fuel remaining
-						if(!fuelcheck.checked){
-							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>";
-						}else{
-							carText += '<span style="color:yellow; margin: 1px 5px 1px 5px;">' + (i+1) + ": " + "<span style=\"color:white;\">" + vehiclesSorted[i].name + "</span>" + (i==0?" <span style=\"color: #3FB0FF;font-weight: bold;font-style: italic;\">" + leadCarText + "</span> ": "<span style=\"color: #ff5c38;font-weight: bold;font-style: italic;\">" + remainingCarText) +  "</span>" + "<span style=\"color: yellow\">" + " Fuel: "+ (Math.round((vehiclesSorted[i].fuel)*10000)/100).toFixed(1) +"%" +  "</span>";
-						}
-					} 
-					
-					
-					if (isBold){
-						carText += "</b></i>";
-					}
-					
-					document.getElementById(i).innerHTML = carText;
-					//if(fuelcheck.checked){
-						//document.getElementById(i).appendChild(fuelimg);
-					//}
-
-				}
-*/
