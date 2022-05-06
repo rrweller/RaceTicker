@@ -9,7 +9,6 @@ angular.module('beamng.apps')
 			overflow-y: auto;
 			layout="column; 
 			layout-align=top left; 
-			class="bngApps">
 		<div id="leaderboard"></div></body>
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
