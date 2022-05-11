@@ -16,6 +16,7 @@ angular.module('beamng.apps')
 			<div class="content"></div>
 		</div></body>
 		<div id="cars"></div></body>
+		
 		<style> .top {
 			display: flex; 
 			background-color: #d98934;
