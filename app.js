@@ -9,6 +9,7 @@ angular.module('beamng.apps')
 			overflow-y: auto;
 			layout="column; 
 			layout-align=top left; 
+			class="bngApps">
 		<div id="leaderboard"></div></body>
 		<div id="top" class="top"></div></body>
 		<div id="laps" class="laps"></div></body>
@@ -21,7 +22,7 @@ angular.module('beamng.apps')
 			display: flex; 
 			background-color: #d98934;
 			height: 40px;
-			width: 99%; 
+			width: 98.5%; 
 			border: 3px solid white; 
 			font-size: 24px; 
 			color:white;
@@ -32,7 +33,7 @@ angular.module('beamng.apps')
 		<style> .laps {
 			display: flex; 
 			align-items: center; 
-			background-color:rgba(100,100,100,0.2); 
+			background-color:rgba(0,0,0,0.5); 
 			color:white; 
 			border: 1px solid white; 
 			width: 100%;
@@ -55,8 +56,9 @@ angular.module('beamng.apps')
 			background:url(/ui/modules/apps/raceTicker/background.png);
 			border: none;
 			font-size: 16px;
+			overflow:hidden;
 			width: 100%;
-			text-align: center
+			text-align: center;
 		}</style>
 		<style> .jumperBTN {background-color:blue;color:white;border: 10px solid white;}</style>
 		`,
@@ -329,7 +331,7 @@ angular.module('beamng.apps')
 					}
 					
 					//format each car button as the following. THIS SPAN WRAPS THE ENTIRE BUTTON.					
-				carText += '<span style="pointer-events: none; display:flex; width: 100%; color:yellow;' + ( isBold ? 'font-weight: bold;">' : '">' )+ '<span style="margin-left: 3px; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-size: 20px;">' + (i+1)+ "</span>";
+					carText += '<span style="pointer-events: none; display:flex; width: 100%; color:#black;' + ( isBold ? 'font-weight: bold; font-style: italic">' : '">' )+ '<span style="margin-left: 4px; margin-top: 0px; font-style: italic; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; font-size: 18px;">' + (i+1)+ "</span>";
 					
 					//add the car name
 					carText += carName(i);
@@ -364,6 +366,7 @@ angular.module('beamng.apps')
 	function carName(j){
 		if(vehiclesSorted[j].crashed){
 			return '<span style="margin-left: 15px; color:#ff5c38;">'+ vehiclesSorted[j].name + "</span>";
+		}else{
 			return '<span style="margin-left: 15px; color:white;">' + vehiclesSorted[j].name + "</span>";
 		}
 	}
