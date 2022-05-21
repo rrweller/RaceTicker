@@ -53,7 +53,7 @@ angular.module('beamng.apps')
 			width: 100%;
 			height: 26px; 
 			display: flex;
-			background:url(/ui/modules/apps/raceTicker/background.png);
+			background:url(/ui/modules/apps/RaceTicker/raceTicker/background.png);
 			border: none;
 			font-size: 16px;
 			overflow:hidden;
