@@ -1,3 +1,0 @@
-Move the raceTicker folder to 
-*\SteamLibrary\steamapps\common\BeamNG.drive\ui\modules\apps\
-(Your Steam Library folder, not your folder in Documents or in appdata\common)
