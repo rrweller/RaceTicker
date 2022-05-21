@@ -53,7 +53,7 @@ angular.module('beamng.apps')
 			width: 100%;
 			height: 26px; 
 			display: flex;
-			background:url(/ui/modules/apps/RaceTicker/raceTicker/background.png);
+			background:url(/ui/modules/apps/raceTicker/background.png);
 			border: none;
 			font-size: 16px;
 			overflow:hidden;
@@ -331,8 +331,7 @@ angular.module('beamng.apps')
 					}
 					
 					//format each car button as the following. THIS SPAN WRAPS THE ENTIRE BUTTON.					
-					carText += '<span style="pointer-events: none; display:flex; width: 100%; color:#black;' + ( isBold ? 'font-weight: bold; font-style: italic">' : '">' )+ '<span style="margin-left: 4px; margin-top: 0px; font-style: italic; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; font-size: 18px;">' + (i+1)+ "</span>";
-					
+					carText += '<span style="pointer-events: none; display:flex; width: 100%; color:#black;' + ( isBold ? 'font-weight: bold; font-style: italic">' : '">' )+ '<span style="display:inline-block; width: 15px; margin-left: 0px; margin-top: -1px; font-style: italic; text-shadow: -2px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; font-size: 20px;">' + (i+1) + "</span>";
 					//add the car name
 					carText += carName(i);
 					
@@ -418,7 +417,6 @@ angular.module('beamng.apps')
 	function carFuel(j,fuelPercent){
 		return '<span style="margin-left: auto; color: yellow;"> <img style="vertical-align:middle; height:24px; width: 24px; display:inline-block"; src="/ui/modules/apps/raceTicker/fuel.png">' + fuelPercent +"%" +  "</span>";
 	}
-	
 	function debug(str){
 		todebug = ""+str;
 		
