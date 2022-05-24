@@ -20,10 +20,10 @@ angular.module('beamng.apps')
 		
 		<style> .top {
 			display: flex; 
-			background-color: #d98934;
 			height: 40px;
-			width: 98.5%; 
+			width: 100%; 
 			border: 3px solid white; 
+			background:url(/ui/modules/apps/RaceTicker/topbar.png);
 			font-size: 24px; 
 			color:white;
 			align-items:center;
@@ -51,9 +51,9 @@ angular.module('beamng.apps')
 			}</style>
 		<style> .cars {
 			width: 100%;
-			height: 26px; 
+			height: 30px; 
 			display: flex;
-			background:url(/ui/modules/apps/raceTicker/background.png);
+			background:url(/ui/modules/apps/RaceTicker/carbar.png);
 			border: none;
 			font-size: 16px;
 			overflow:hidden;
