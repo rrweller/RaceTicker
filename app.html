@@ -34,7 +34,7 @@
   }
 
   .race-ticker .viewport {
-    width: min(calc(100% - 8px), 384px);
+    width: min(calc(100% - 8px), 500px);
     height: calc(100% - 16px);
     margin: 8px 0 8px 8px;
   }
@@ -280,6 +280,87 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .race-ticker .sensitivity-control {
+    width: 166px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .race-ticker .sensitivity-slider {
+    position: relative;
+    flex: 1;
+    height: 28px;
+    display: flex;
+    align-items: center;
+  }
+
+  .race-ticker .sensitivity-track {
+    position: absolute;
+    inset: 50% 0 auto 0;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-50%);
+    overflow: hidden;
+  }
+
+  .race-ticker .sensitivity-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.34), rgba(var(--rt-accent-rgb), 0.88));
+  }
+
+  .race-ticker .sensitivity-steps {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .race-ticker .sensitivity-step {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 0 0 2px rgba(10, 11, 16, 0.36);
+    transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .race-ticker .sensitivity-step.is-default {
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 2px rgba(var(--rt-accent-rgb), 0.18);
+  }
+
+  .race-ticker .sensitivity-step.is-active {
+    background: #ffffff;
+    transform: scale(1.05);
+  }
+
+  .race-ticker .sensitivity-step.is-active.is-default {
+    box-shadow: 0 0 0 2px rgba(var(--rt-accent-rgb), 0.34);
+  }
+
+  .race-ticker .sensitivity-thumb {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 2px solid var(--rt-accent);
+    box-shadow:
+      0 4px 10px rgba(0, 0, 0, 0.26),
+      0 0 0 2px rgba(10, 11, 16, 0.38);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 2;
   }
 
   .race-ticker .stepper-button,
@@ -722,6 +803,29 @@
                 <button type="button" class="stepper-button" ng-click="raceTicker.decrementScale()">-</button>
                 <div class="stepper-value is-scale">{{ raceTicker.scaleLabel() }}</div>
                 <button type="button" class="stepper-button" ng-click="raceTicker.incrementScale()">+</button>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">Off-Line Sensitivity</div>
+                <div class="config-hint">Minus is stricter, plus is more forgiving</div>
+              </div>
+              <div class="sensitivity-control">
+                <button type="button" class="stepper-button" ng-click="raceTicker.decrementLineErrorTolerance()">-</button>
+                <div class="sensitivity-slider" aria-hidden="true">
+                  <div class="sensitivity-track">
+                    <div class="sensitivity-fill" ng-style="raceTicker.lineErrorSensitivityFillStyle()"></div>
+                  </div>
+                  <div class="sensitivity-steps">
+                    <span
+                      class="sensitivity-step"
+                      ng-repeat="option in raceTicker.lineErrorToleranceSteps track by option"
+                      ng-class="{ 'is-active': raceTicker.isLineErrorToleranceStepActive(option), 'is-default': option === 5 }"></span>
+                  </div>
+                  <div class="sensitivity-thumb" ng-style="raceTicker.lineErrorSensitivityThumbStyle()"></div>
+                </div>
+                <button type="button" class="stepper-button" ng-click="raceTicker.incrementLineErrorTolerance()">+</button>
               </div>
             </div>
 

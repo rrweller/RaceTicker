@@ -1,6 +1,7 @@
 angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($interval) {
   var UI_CONFIG_STORAGE_KEY = 'apps:raceTicker.uiConfig'
   var DEFAULT_SERIES_TEXT = 'RACE'
+  var DEFAULT_SHOW_LAPS_DOWN = true
   var UI_SCALE_OPTIONS = [
     { label: '50%', value: 0.5 },
     { label: '66%', value: 2 / 3 },
@@ -41,11 +42,15 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       })
     },
     controller: function ($scope) {
-      var ERROR_TOLERANCE = 5
+      var DEFAULT_LINE_ERROR_TOLERANCE = 5
+      var LINE_ERROR_TOLERANCE_OPTIONS = [2, 3, 4, 5, 6, 7, 8]
       var ERROR_SENSITIVITY = 5
       var JUMP_INTERVAL = 10
       var JUMP_GRACE_SECONDS = 5
-
+      var STALL_PROGRESS_EPSILON = 0.35
+      var STALL_GRACE_SECONDS = 4
+      var STALL_MIN_SCRIPT_TIME = 1.5
+      var STALL_SPEED_THRESHOLD = 1
       var vm = this
       vm.loading = false
       vm.nameRequests = {}
@@ -55,11 +60,13 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.ui = {
         settingsOpen: false
       }
+      vm.lineErrorToleranceSteps = LINE_ERROR_TOLERANCE_OPTIONS.slice()
       vm.settings = {
         showFuel: false,
-        showLapsDown: false,
+        showLapsDown: DEFAULT_SHOW_LAPS_DOWN,
         uiScale: 1,
-        seriesText: DEFAULT_SERIES_TEXT
+        seriesText: DEFAULT_SERIES_TEXT,
+        lineErrorTolerance: DEFAULT_LINE_ERROR_TOLERANCE
       }
       vm.state = {
         totalLaps: 0,
@@ -135,6 +142,36 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       vm.scaleLabel = function () {
         return getUiScaleOption(vm.settings.uiScale).label
+      }
+
+      vm.incrementLineErrorTolerance = function () {
+        var currentIndex = getLineErrorToleranceIndex(vm.settings.lineErrorTolerance)
+        vm.settings.lineErrorTolerance = LINE_ERROR_TOLERANCE_OPTIONS[Math.min(currentIndex + 1, LINE_ERROR_TOLERANCE_OPTIONS.length - 1)]
+        persistUiConfig()
+        vm.refresh()
+      }
+
+      vm.decrementLineErrorTolerance = function () {
+        var currentIndex = getLineErrorToleranceIndex(vm.settings.lineErrorTolerance)
+        vm.settings.lineErrorTolerance = LINE_ERROR_TOLERANCE_OPTIONS[Math.max(currentIndex - 1, 0)]
+        persistUiConfig()
+        vm.refresh()
+      }
+
+      vm.lineErrorSensitivityFillStyle = function () {
+        return {
+          width: getLineErrorTolerancePercent(vm.settings.lineErrorTolerance) + '%'
+        }
+      }
+
+      vm.lineErrorSensitivityThumbStyle = function () {
+        return {
+          left: getLineErrorTolerancePercent(vm.settings.lineErrorTolerance) + '%'
+        }
+      }
+
+      vm.isLineErrorToleranceStepActive = function (value) {
+        return getLineErrorTolerance(value) <= getLineErrorTolerance(vm.settings.lineErrorTolerance)
       }
 
       vm.scaleStyle = function () {
@@ -219,7 +256,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var now = toNumber(payload.timestamp, Date.now())
         var scriptState = normalizeLuaObject(payload.scriptState)
         var fuelData = normalizeLuaObject(payload.fuelData)
+        var speedData = normalizeLuaObject(payload.speedData)
         var playerVehId = parseInteger(payload.playerVehId)
+        var lineErrorTolerance = getLineErrorTolerance(vm.settings.lineErrorTolerance)
         var lineEnd = 0
         var seenVehIds = {}
 
@@ -256,10 +295,14 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
               averageLineError: 0,
               crashed: false,
               jumped: false,
+              stalled: false,
               scriptTimeAtSave: scriptTime,
               realTimeAtSave: now,
+              stallScriptTimeAtSave: scriptTime,
+              stallRealTimeAtSave: now,
               endScriptTime: 0,
-              fuel: null
+              fuel: null,
+              speed: 0
             }
             vm.vehiclesById[vehId] = entry
           }
@@ -269,9 +312,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             entry.averageLineError = 0
             entry.crashed = false
             entry.jumped = false
+            entry.stalled = false
             entry.storedScriptTime = scriptTime
             entry.scriptTimeAtSave = scriptTime
             entry.realTimeAtSave = now
+            entry.stallScriptTimeAtSave = scriptTime
+            entry.stallRealTimeAtSave = now
             entry.endScriptTime = 0
           }
 
@@ -283,7 +329,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           var lineError = Math.abs(toNumber(value.posError, 0))
           entry.averageLineError = ((entry.averageLineError * ERROR_SENSITIVITY) + lineError) / (ERROR_SENSITIVITY + 1)
 
-          if (entry.averageLineError > ERROR_TOLERANCE) {
+          if (entry.averageLineError > lineErrorTolerance) {
             if (!entry.crashed) {
               entry.crashed = true
               entry.storedScriptTime = previousScriptTime
@@ -311,6 +357,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           if (fuelData[vehId] !== undefined) {
             entry.fuel = fuelData[vehId]
           }
+
+          if (speedData[vehId] !== undefined) {
+            entry.speed = toNumber(speedData[vehId], entry.speed || 0)
+          }
+
+          updateStallState(entry, scriptTime, now)
         })
 
         angular.forEach(vm.vehiclesById, function (entry, vehId) {
@@ -323,10 +375,11 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         angular.forEach(vm.vehiclesById, function (entry) {
           rows.push({
             vehId: entry.vehId,
-            sortTime: entry.crashed ? (entry.jumped ? 0 : toNumber(entry.storedScriptTime, 0)) : toNumber(entry.time, 0),
+            sortTime: (entry.crashed || entry.stalled) ? (entry.jumped ? 0 : toNumber(entry.storedScriptTime, 0)) : toNumber(entry.time, 0),
             fuel: entry.fuel,
             crashed: entry.crashed,
-            jumped: entry.jumped
+            jumped: entry.jumped,
+            stalled: entry.stalled
           })
         })
 
@@ -350,7 +403,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           row.fuelLabel = formatFuelLabel(row.fuel)
           row.isLeader = index === 0
           row.isPlayerFocus = playerVehId !== null && playerVehId === row.vehId
-          row.isWarning = row.crashed || row.jumped
+          row.isWarning = row.crashed || row.jumped || row.stalled
         })
 
         vm.state.totalLaps = totalLaps
@@ -370,15 +423,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var leader = rows[0]
         var row = rows[index]
         if (index === 0) {
-          if (vm.settings.showLapsDown && totalLaps > 0 && lapLength > 0) {
-            var lapsComplete = clampLeaderLap(Math.floor(leader.sortTime / lapLength) + 1, totalLaps)
-            if (lapsComplete <= Math.floor(totalLaps * 0.5)) {
-              return 'Lap ' + lapsComplete + ' of ' + totalLaps
-            }
-            if (lapsComplete < totalLaps) {
-              return (totalLaps - lapsComplete + 1) + ' Laps to go'
-            }
-            return 'Final Lap'
+          if (vm.settings.showLapsDown) {
+            return 'Leader'
           }
 
           if (lineEnd > 0) {
@@ -397,6 +443,26 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return '+' + timeBehind.toFixed(2) + 's'
+      }
+
+      function updateStallState(entry, scriptTime, now) {
+        var speed = toNumber(entry.speed, 0)
+        var progressDelta = scriptTime - toNumber(entry.stallScriptTimeAtSave, scriptTime)
+        var stalledDuration = (now - toNumber(entry.stallRealTimeAtSave, now)) / 1000
+        var hasMeaningfulProgress = progressDelta > STALL_PROGRESS_EPSILON
+        var isMoving = speed > STALL_SPEED_THRESHOLD
+
+        if (entry.jumped || entry.crashed || scriptTime < STALL_MIN_SCRIPT_TIME || hasMeaningfulProgress || isMoving) {
+          entry.stalled = false
+          entry.stallScriptTimeAtSave = scriptTime
+          entry.stallRealTimeAtSave = now
+          return
+        }
+
+        if (stalledDuration >= STALL_GRACE_SECONDS && !entry.stalled) {
+          entry.stalled = true
+          entry.storedScriptTime = scriptTime
+        }
       }
 
       function ensureVehicleName(vehId) {
@@ -453,9 +519,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         vm.settings.showFuel = !!config.showFuel
-        vm.settings.showLapsDown = !!config.showLapsDown
+        vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
         vm.settings.uiScale = getUiScaleOption(config.uiScale).value
         vm.settings.seriesText = sanitizeSeriesText(config.seriesText)
+        vm.settings.lineErrorTolerance = getLineErrorTolerance(config.lineErrorTolerance)
 
         var manualLapCount = parseInteger(config.manualLapCount)
         if (manualLapCount !== null) {
@@ -469,6 +536,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           showLapsDown: !!vm.settings.showLapsDown,
           uiScale: getUiScaleOption(vm.settings.uiScale).value,
           seriesText: sanitizeSeriesText(vm.settings.seriesText),
+          lineErrorTolerance: getLineErrorTolerance(vm.settings.lineErrorTolerance),
           manualLapCount: Math.max(parseInteger(vm.state.manualLapCount) || 0, 0)
         }
       }
@@ -546,6 +614,42 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return bestOption
+      }
+
+      function getLineErrorTolerance(value) {
+        var numericValue = toNumber(value, DEFAULT_LINE_ERROR_TOLERANCE)
+        var bestValue = LINE_ERROR_TOLERANCE_OPTIONS[0]
+        var bestDistance = Math.abs(numericValue - bestValue)
+
+        for (var index = 1; index < LINE_ERROR_TOLERANCE_OPTIONS.length; index++) {
+          var optionValue = LINE_ERROR_TOLERANCE_OPTIONS[index]
+          var distance = Math.abs(numericValue - optionValue)
+          if (distance < bestDistance) {
+            bestValue = optionValue
+            bestDistance = distance
+          }
+        }
+
+        return bestValue
+      }
+
+      function getLineErrorToleranceIndex(value) {
+        var normalizedValue = getLineErrorTolerance(value)
+        for (var index = 0; index < LINE_ERROR_TOLERANCE_OPTIONS.length; index++) {
+          if (LINE_ERROR_TOLERANCE_OPTIONS[index] === normalizedValue) {
+            return index
+          }
+        }
+
+        return Math.floor(LINE_ERROR_TOLERANCE_OPTIONS.length / 2)
+      }
+
+      function getLineErrorTolerancePercent(value) {
+        if (LINE_ERROR_TOLERANCE_OPTIONS.length <= 1) {
+          return 50
+        }
+
+        return (getLineErrorToleranceIndex(value) / (LINE_ERROR_TOLERANCE_OPTIONS.length - 1)) * 100
       }
 
       function normalizeLuaObject(value) {
