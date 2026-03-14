@@ -1,14 +1,24 @@
 {
-  "name" : "RaceTicker",
-  "author": "Keudn, Husk, Janvanfalken, Oren, and FluffyHulk",
-  "version": "0.1",
-  "description": "Just a tutorial app",
-  "directive": "raceTicker",
   "domElement": "<race-ticker></race-ticker>",
-  "css": { 
-	"width": "400px", 
-	"height": "800px", 
-	"top": "200px", 
-	"left": "200px" },   
-  "preserveAspectRatio" : false
+  "name": "RaceTicker",
+  "appName": "RaceTicker",
+  "types": [
+    "ui.apps.categories.racing"
+  ],
+  "author": "Keudn, Husk, Janvanfalken, Oren, FluffyHulk, and Codex",
+  "version": "0.2",
+  "description": "Leaderboard overlay for ScriptAI races.",
+  "directive": "raceTicker",
+  "category": "Gameplay",
+  "css": {
+    "width": "400px",
+    "height": "800px",
+    "top": "200px",
+    "left": "200px",
+    "min-width": "320px",
+    "min-height": "260px"
+  },
+  "isAuxiliary": false,
+  "interactive": "required",
+  "preserveAspectRatio": false
 }
