@@ -2,6 +2,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
   var UI_CONFIG_STORAGE_KEY = 'apps:raceTicker.uiConfig'
   var DEFAULT_SERIES_TEXT = 'RACE'
   var DEFAULT_SHOW_LAPS_DOWN = true
+  var DEFAULT_RELATIVE_GAP = false
   var UI_SCALE_OPTIONS = [
     { label: '50%', value: 0.5 },
     { label: '66%', value: 2 / 3 },
@@ -53,6 +54,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       var STALL_GRACE_SECONDS = 4
       var STALL_MIN_SCRIPT_TIME = 1.5
       var STALL_SPEED_THRESHOLD = 1
+      var OUT_GRACE_SECONDS = 15
+      var OUT_PROGRESS_EPSILON = 0.2
+      var OUT_SPEED_THRESHOLD = 2
       var START_REORDER_PAUSE_MS = 2000
       var START_RESET_MAX_LEADER_TIME = 3
       var START_RESET_DROP_THRESHOLD = 2
@@ -94,6 +98,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.settings = {
         showFuel: false,
         showLapsDown: DEFAULT_SHOW_LAPS_DOWN,
+        relativeGap: DEFAULT_RELATIVE_GAP,
         uiScale: 1,
         seriesText: DEFAULT_SERIES_TEXT,
         lineErrorTolerance: DEFAULT_LINE_ERROR_TOLERANCE
@@ -165,6 +170,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       vm.setLeaderDisplayMode = function (useLapsDown) {
         vm.settings.showLapsDown = !!useLapsDown
+        persistUiConfig()
+        vm.refresh()
+      }
+
+      vm.setGapDisplayMode = function (useRelativeGap) {
+        vm.settings.relativeGap = !!useRelativeGap
         persistUiConfig()
         vm.refresh()
       }
@@ -246,7 +257,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         if (vm.state.manualLapCount > 0) {
-          return ('Race ' + vm.state.manualLapCount + ' Laps').toUpperCase()
+          return (vm.state.manualLapCount + ' Laps').toUpperCase()
         }
 
         return 'ScriptAI Timing'
@@ -351,10 +362,13 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
               crashed: false,
               jumped: false,
               stalled: false,
+              out: false,
               scriptTimeAtSave: scriptTime,
               realTimeAtSave: now,
               stallScriptTimeAtSave: scriptTime,
               stallRealTimeAtSave: now,
+              outScriptTimeAtSave: scriptTime,
+              outRealTimeAtSave: now,
               endScriptTime: 0,
               fuel: null,
               speed: 0
@@ -368,11 +382,14 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             entry.crashed = false
             entry.jumped = false
             entry.stalled = false
+            entry.out = false
             entry.storedScriptTime = scriptTime
             entry.scriptTimeAtSave = scriptTime
             entry.realTimeAtSave = now
             entry.stallScriptTimeAtSave = scriptTime
             entry.stallRealTimeAtSave = now
+            entry.outScriptTimeAtSave = scriptTime
+            entry.outRealTimeAtSave = now
             entry.endScriptTime = 0
           }
 
@@ -417,6 +434,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             entry.speed = toNumber(speedData[vehId], entry.speed || 0)
           }
 
+          updateOutState(entry, scriptTime, now)
           updateStallState(entry, scriptTime, now)
         })
 
@@ -434,7 +452,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             fuel: entry.fuel,
             crashed: entry.crashed,
             jumped: entry.jumped,
-            stalled: entry.stalled
+            stalled: entry.stalled,
+            out: entry.out
           })
         })
 
@@ -450,7 +469,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           row.name = getVehicleName(row.vehId)
           row.fuelLabel = formatFuelLabel(row.fuel)
           row.isPlayerFocus = playerVehId !== null && playerVehId === row.vehId
-          row.isWarning = row.crashed || row.jumped || row.stalled
+          row.isOut = !!row.out
+          row.isWarning = row.crashed || row.jumped || row.stalled || row.isOut
         })
 
         updateRunStartPause(rows, now)
@@ -488,6 +508,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         var leader = rows[0]
         var row = rows[index]
+        if (row.isOut) {
+          return 'OUT'
+        }
+
         if (index === 0) {
           if (vm.settings.showLapsDown) {
             return 'Leader'
@@ -500,15 +524,31 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return 'Leader'
         }
 
-        var timeBehind = Math.max(leader.sortTime - row.sortTime, 0)
-        if (vm.settings.showLapsDown && lapLength > 0) {
-          var lapsBehind = Math.floor(timeBehind / lapLength)
-          if (lapsBehind > 0) {
-            return '+' + lapsBehind + ' ' + (lapsBehind === 1 ? 'Lap' : 'Laps')
-          }
+        var anchorRow = vm.settings.relativeGap ? rows[index - 1] : leader
+        if (!anchorRow) {
+          anchorRow = leader
         }
+        var timeBehind = Math.max(toNumber(anchorRow.sortTime, 0) - toNumber(row.sortTime, 0), 0)
 
         return '+' + timeBehind.toFixed(2) + 's'
+      }
+
+      function updateOutState(entry, scriptTime, now) {
+        var isCrashState = entry.crashed || entry.jumped
+        var progressDelta = scriptTime - toNumber(entry.outScriptTimeAtSave, scriptTime)
+        var noProgressDuration = (now - toNumber(entry.outRealTimeAtSave, now)) / 1000
+        var isMoving = toNumber(entry.speed, 0) > OUT_SPEED_THRESHOLD
+
+        if (!isCrashState || progressDelta > OUT_PROGRESS_EPSILON || isMoving) {
+          entry.out = false
+          entry.outScriptTimeAtSave = scriptTime
+          entry.outRealTimeAtSave = now
+          return
+        }
+
+        if (noProgressDuration >= OUT_GRACE_SECONDS) {
+          entry.out = true
+        }
       }
 
       function updateStallState(entry, scriptTime, now) {
@@ -1042,6 +1082,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         vm.settings.showFuel = !!config.showFuel
         vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
+        vm.settings.relativeGap = config.relativeGap === undefined ? DEFAULT_RELATIVE_GAP : !!config.relativeGap
         vm.settings.uiScale = getUiScaleOption(config.uiScale).value
         vm.settings.seriesText = sanitizeSeriesText(config.seriesText, { allowEmpty: true })
         vm.settings.lineErrorTolerance = getLineErrorTolerance(config.lineErrorTolerance)
@@ -1056,6 +1097,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return {
           showFuel: !!vm.settings.showFuel,
           showLapsDown: !!vm.settings.showLapsDown,
+          relativeGap: !!vm.settings.relativeGap,
           uiScale: getUiScaleOption(vm.settings.uiScale).value,
           seriesText: sanitizeSeriesText(vm.settings.seriesText, { allowEmpty: true }),
           lineErrorTolerance: getLineErrorTolerance(vm.settings.lineErrorTolerance),

@@ -7,6 +7,7 @@ local minLineErrorTolerance = 2
 local maxLineErrorTolerance = 8
 local defaultLineErrorTolerance = 5
 local defaultShowLapsDown = true
+local defaultRelativeGap = false
 
 local scriptStateByVehId = {}
 local fuelByVehId = {}
@@ -100,6 +101,7 @@ local function sanitizeUiConfig(config)
   return {
     showFuel = data.showFuel and true or false,
     showLapsDown = data.showLapsDown == nil and defaultShowLapsDown or (data.showLapsDown and true or false),
+    relativeGap = data.relativeGap == nil and defaultRelativeGap or (data.relativeGap and true or false),
     uiScale = normalizeUiScale(data.uiScale),
     seriesText = sanitizeSeriesText(data.seriesText),
     lineErrorTolerance = normalizeLineErrorTolerance(data.lineErrorTolerance),
