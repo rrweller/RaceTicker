@@ -528,6 +528,15 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         if (!anchorRow) {
           anchorRow = leader
         }
+
+        if (vm.settings.relativeGap && lapLength > 0) {
+          var leaderTimeBehind = Math.max(toNumber(leader.sortTime, 0) - toNumber(row.sortTime, 0), 0)
+          var lapsBehindLeader = Math.floor(leaderTimeBehind / lapLength)
+          if (lapsBehindLeader > 0) {
+            return '+' + lapsBehindLeader + ' ' + (lapsBehindLeader === 1 ? 'Lap' : 'Laps')
+          }
+        }
+
         var timeBehind = Math.max(toNumber(anchorRow.sortTime, 0) - toNumber(row.sortTime, 0), 0)
 
         return '+' + timeBehind.toFixed(2) + 's'
