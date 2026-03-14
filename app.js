@@ -65,12 +65,17 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       var START_REORDER_PAUSE_MS = 2000
       var START_RESET_MAX_LEADER_TIME = 3
       var START_RESET_DROP_THRESHOLD = 2
+      var PASS_CHECK_INTERVAL_MS = 1000
       var PASS_STABLE_MS = 450
       var PASS_COOLDOWN_MS = 700
       var PASS_FORCE_COMMIT_MS = 1400
       var LAYOUT_LOCK_MS = 360
+      var PASS_ANIMATION_DURATION_MULTIPLIER = 1 / 0.67
       var PASS_ANIMATION_DURATION_MS = 440
+      var PASS_ANIMATION_MAX_MS = 960
       var PASS_ANIMATION_EASING = 'cubic-bezier(0.22, 0.86, 0.28, 1)'
+      var PASS_UP_ANIMATION_EASING = 'cubic-bezier(0.22, 0.82, 0.24, 1)'
+      var PASS_DOWN_ANIMATION_EASING = 'cubic-bezier(0.16, 0.90, 0.24, 1)'
       var vm = this
       vm.loading = false
       vm.nameRequests = {}
@@ -85,7 +90,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         raf1: 0,
         raf2: 0,
         active: [],
-        ghosts: []
+        ghosts: [],
+        hiddenRows: {},
+        prepBoard: null
       }
       vm.orderState = {
         displayKey: '',
@@ -97,7 +104,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         hadRows: false,
         lastLeaderSortTime: null,
         cooldownUntilMs: 0,
-        layoutLockUntilMs: 0
+        layoutLockUntilMs: 0,
+        nextCheckMs: 0
       }
       vm.ui = {
         settingsOpen: false,
@@ -169,7 +177,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       vm.toggleSettings = function () {
         stopPassAnimations()
-        vm.orderState.layoutLockUntilMs = Date.now() + LAYOUT_LOCK_MS
+        var now = Date.now()
+        vm.orderState.layoutLockUntilMs = now + LAYOUT_LOCK_MS
+        vm.orderState.nextCheckMs = Math.max(vm.orderState.nextCheckMs || 0, now + PASS_CHECK_INTERVAL_MS)
         vm.ui.settingsOpen = !vm.ui.settingsOpen
       }
 
@@ -677,6 +687,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           vm.orderState.candidateSinceMs = 0
           vm.orderState.mismatchSinceMs = 0
           vm.orderState.cooldownUntilMs = 0
+          vm.orderState.nextCheckMs = now + PASS_CHECK_INTERVAL_MS
         }
 
         vm.orderState.hadRows = hasRows
@@ -689,8 +700,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var displayKey = buildOrderKey(displayedRows)
         var isFirstRender = !displayKey
         var hasSetChange = !isFirstRender && !hasSameVehSet(displayedRows, canonicalRows)
-        var shouldAnimate = false
-        var previousGeometry = null
 
         if (isFirstRender || hasSetChange) {
           vm.orderState.displayOrder = extractVehIds(canonicalRows)
@@ -698,6 +707,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           vm.orderState.candidateKey = ''
           vm.orderState.candidateSinceMs = 0
           vm.orderState.mismatchSinceMs = 0
+          vm.orderState.nextCheckMs = now + PASS_CHECK_INTERVAL_MS
           return {
             rows: canonicalRows,
             shouldAnimate: false,
@@ -711,6 +721,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           vm.orderState.candidateKey = ''
           vm.orderState.candidateSinceMs = 0
           vm.orderState.mismatchSinceMs = 0
+          vm.orderState.nextCheckMs = now + PASS_CHECK_INTERVAL_MS
           return {
             rows: displayedRows,
             shouldAnimate: false,
@@ -719,9 +730,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         if (now < vm.orderState.startPauseUntilMs) {
-          vm.orderState.candidateKey = ''
-          vm.orderState.candidateSinceMs = 0
-          vm.orderState.mismatchSinceMs = 0
           return {
             rows: displayedRows,
             shouldAnimate: false,
@@ -729,24 +737,16 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           }
         }
 
-        if (!vm.orderState.mismatchSinceMs) {
-          vm.orderState.mismatchSinceMs = now
-        }
-
-        var candidateKey = buildReorderCandidateKey(displayedRows, canonicalRows)
-        if (vm.orderState.candidateKey !== candidateKey) {
-          vm.orderState.candidateKey = candidateKey
-          vm.orderState.candidateSinceMs = now
+        if (now < vm.orderState.nextCheckMs) {
           return {
             rows: displayedRows,
             shouldAnimate: false,
             previousGeometry: null
           }
         }
+        vm.orderState.nextCheckMs = now + PASS_CHECK_INTERVAL_MS
 
-        var candidateStable = (now - vm.orderState.candidateSinceMs) >= PASS_STABLE_MS
-        var forceCommit = (now - vm.orderState.mismatchSinceMs) >= PASS_FORCE_COMMIT_MS
-        if (!candidateStable && !forceCommit) {
+        if (isPassAnimationBusy()) {
           return {
             rows: displayedRows,
             shouldAnimate: false,
@@ -756,7 +756,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         var layoutLocked = now < vm.orderState.layoutLockUntilMs
         var cooldownLocked = now < vm.orderState.cooldownUntilMs
-        if (!forceCommit && (layoutLocked || cooldownLocked)) {
+        if (layoutLocked || cooldownLocked) {
           return {
             rows: displayedRows,
             shouldAnimate: false,
@@ -764,15 +764,13 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           }
         }
 
-        if (!layoutLocked && !cooldownLocked) {
-          previousGeometry = captureBoardRowGeometry()
-        }
+        var previousGeometry = captureBoardRowGeometry()
         vm.orderState.displayOrder = extractVehIds(canonicalRows)
         vm.orderState.displayKey = canonicalKey
         vm.orderState.candidateKey = ''
         vm.orderState.candidateSinceMs = 0
         vm.orderState.mismatchSinceMs = 0
-        shouldAnimate = !!previousGeometry
+        var shouldAnimate = !!previousGeometry
         if (shouldAnimate) {
           vm.orderState.cooldownUntilMs = now + PASS_COOLDOWN_MS
         }
@@ -926,6 +924,15 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return buildOrderKey(canonicalRows)
       }
 
+      function isPassAnimationBusy() {
+        return !!(
+          vm.passAnimation.raf1 ||
+          vm.passAnimation.raf2 ||
+          (vm.passAnimation.active && vm.passAnimation.active.length) ||
+          (vm.passAnimation.ghosts && vm.passAnimation.ghosts.length)
+        )
+      }
+
       function captureBoardRowGeometry() {
         if (!vm.rootElement || typeof window === 'undefined') {
           return null
@@ -975,12 +982,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         stopPassAnimations()
 
+        previousGeometry.boardElement.classList.add('is-pass-anim-prep')
+        vm.passAnimation.prepBoard = previousGeometry.boardElement
+
         vm.passAnimation.raf1 = window.requestAnimationFrame(function () {
           vm.passAnimation.raf1 = 0
-          vm.passAnimation.raf2 = window.requestAnimationFrame(function () {
-            vm.passAnimation.raf2 = 0
-            playPassAnimation(previousGeometry)
-          })
+          playPassAnimation(previousGeometry)
         })
       }
 
@@ -989,6 +996,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var passLayer = previousGeometry.passLayer
         var boardRect
         var rowElements
+        var moveEntries = []
+        var maxDistance = 0
 
         if (!boardElement || !passLayer) {
           return
@@ -1003,8 +1012,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           var currentRect
           var currentTop
           var deltaY
-          var ghostNode
-          var animation
 
           if (!vehId || !previousRow) {
             return
@@ -1012,41 +1019,79 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
           currentRect = rowElement.getBoundingClientRect()
           currentTop = currentRect.top - boardRect.top + boardElement.scrollTop
-          deltaY = currentTop - previousRow.top
+          deltaY = Math.round(currentTop - previousRow.top)
           if (Math.abs(deltaY) < 1) {
             return
           }
 
-          ghostNode = rowElement.cloneNode(true)
+          moveEntries.push({
+            vehId: vehId,
+            rowElement: rowElement,
+            previousRow: previousRow,
+            deltaY: deltaY,
+            distance: Math.abs(deltaY),
+            isDown: deltaY > 0
+          })
+        })
+
+        if (!moveEntries.length) {
+          clearPassPrepVisibility()
+          return
+        }
+
+        angular.forEach(moveEntries, function (entry) {
+          if (entry.distance > maxDistance) {
+            maxDistance = entry.distance
+          }
+        })
+
+        var baseDuration = Math.max(
+          PASS_ANIMATION_DURATION_MS,
+          Math.min(PASS_ANIMATION_MAX_MS, Math.round(300 + maxDistance * 1.7))
+        )
+        var maxDuration = Math.round(PASS_ANIMATION_MAX_MS * PASS_ANIMATION_DURATION_MULTIPLIER)
+        var upDuration = Math.min(maxDuration, Math.round(baseDuration * PASS_ANIMATION_DURATION_MULTIPLIER))
+        var downDuration = Math.min(maxDuration, upDuration + Math.round(120 * PASS_ANIMATION_DURATION_MULTIPLIER))
+
+        angular.forEach(moveEntries, function (entry) {
+          var ghostNode = entry.rowElement.cloneNode(true)
+          var animation
+          var easing = entry.isDown ? PASS_DOWN_ANIMATION_EASING : PASS_UP_ANIMATION_EASING
+          var duration = entry.isDown ? downDuration : upDuration
+
+          hideLiveRow(entry.vehId, entry.rowElement)
+
           ghostNode.classList.add('board-row-ghost')
           ghostNode.style.position = 'absolute'
           ghostNode.style.pointerEvents = 'none'
+          ghostNode.style.visibility = 'visible'
           ghostNode.style.marginTop = '0'
-          ghostNode.style.top = previousRow.top + 'px'
-          ghostNode.style.left = previousRow.left + 'px'
-          ghostNode.style.width = previousRow.width + 'px'
-          ghostNode.style.height = previousRow.height + 'px'
+          ghostNode.style.top = entry.previousRow.top + 'px'
+          ghostNode.style.left = entry.previousRow.left + 'px'
+          ghostNode.style.width = entry.previousRow.width + 'px'
+          ghostNode.style.height = entry.previousRow.height + 'px'
+          ghostNode.style.zIndex = entry.isDown ? '8' : '6'
           ghostNode.style.transform = 'translate3d(0, 0, 0)'
           passLayer.appendChild(ghostNode)
           vm.passAnimation.ghosts.push(ghostNode)
 
           if (!ghostNode.animate) {
-            ghostNode.style.transition = 'transform ' + PASS_ANIMATION_DURATION_MS + 'ms ' + PASS_ANIMATION_EASING
-            ghostNode.style.transform = 'translate3d(0, ' + deltaY.toFixed(2) + 'px, 0)'
+            ghostNode.style.transition = 'transform ' + duration + 'ms ' + easing
+            ghostNode.style.transform = 'translate3d(0, ' + entry.deltaY.toFixed(2) + 'px, 0)'
             window.setTimeout(function () {
               removePassGhostNode(ghostNode)
-            }, PASS_ANIMATION_DURATION_MS + 40)
+            }, duration + 50)
             return
           }
 
           animation = ghostNode.animate(
             [
               { transform: 'translate3d(0, 0, 0)' },
-              { transform: 'translate3d(0, ' + deltaY.toFixed(2) + 'px, 0)' }
+              { transform: 'translate3d(0, ' + entry.deltaY.toFixed(2) + 'px, 0)' }
             ],
             {
-              duration: PASS_ANIMATION_DURATION_MS,
-              easing: PASS_ANIMATION_EASING,
+              duration: duration,
+              easing: easing,
               fill: 'forwards'
             }
           )
@@ -1063,6 +1108,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
           vm.passAnimation.active.push(animation)
         })
+
+        clearPassPrepVisibility()
       }
 
       function removePassAnimation(animation) {
@@ -1072,10 +1119,63 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
       }
 
+      function clearPassPrepVisibility() {
+        if (vm.passAnimation.prepBoard && vm.passAnimation.prepBoard.classList) {
+          vm.passAnimation.prepBoard.classList.remove('is-pass-anim-prep')
+        }
+        vm.passAnimation.prepBoard = null
+      }
+
+      function hideLiveRow(vehId, rowElement) {
+        var key
+        if (!rowElement || vehId === undefined || vehId === null) {
+          return
+        }
+
+        key = String(vehId)
+        if (vm.passAnimation.hiddenRows[key]) {
+          return
+        }
+
+        vm.passAnimation.hiddenRows[key] = {
+          element: rowElement,
+          visibility: rowElement.style.visibility || ''
+        }
+        rowElement.style.visibility = 'hidden'
+      }
+
+      function restoreLiveRow(vehId) {
+        var key = String(vehId)
+        var hiddenEntry = vm.passAnimation.hiddenRows[key]
+        if (!hiddenEntry) {
+          return
+        }
+
+        if (hiddenEntry.element) {
+          hiddenEntry.element.style.visibility = hiddenEntry.visibility || ''
+        }
+        delete vm.passAnimation.hiddenRows[key]
+      }
+
+      function restoreAllHiddenRows() {
+        angular.forEach(vm.passAnimation.hiddenRows, function (hiddenEntry, key) {
+          if (hiddenEntry && hiddenEntry.element) {
+            hiddenEntry.element.style.visibility = hiddenEntry.visibility || ''
+          }
+          delete vm.passAnimation.hiddenRows[key]
+        })
+      }
+
       function removePassGhostNode(ghostNode) {
         var index = vm.passAnimation.ghosts.indexOf(ghostNode)
+        var vehId
         if (index !== -1) {
           vm.passAnimation.ghosts.splice(index, 1)
+        }
+
+        vehId = ghostNode && ghostNode.getAttribute ? ghostNode.getAttribute('data-veh-id') : null
+        if (vehId) {
+          restoreLiveRow(vehId)
         }
 
         if (ghostNode && ghostNode.parentNode) {
@@ -1113,6 +1213,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           }
         })
         vm.passAnimation.ghosts = []
+        restoreAllHiddenRows()
+        clearPassPrepVisibility()
       }
 
       function ensureVehicleIdentity(vehId) {
