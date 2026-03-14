@@ -143,6 +143,25 @@
                   ng-click="raceTicker.setGapDisplayMode(true)">Relative</button>
               </div>
             </div>
+
+            <div class="config-row config-row-inline-toggles">
+              <div class="car-toggle-group">
+                <label class="checkbox-toggle compact">
+                  <input
+                    type="checkbox"
+                    ng-model="raceTicker.settings.showCarNumberBoxes"
+                    ng-change="raceTicker.persistUiConfig()">
+                  <span class="checkbox-label">Display Car Number</span>
+                </label>
+                <label class="checkbox-toggle compact">
+                  <input
+                    type="checkbox"
+                    ng-model="raceTicker.settings.useCsvCarColors"
+                    ng-change="raceTicker.persistUiConfig()">
+                  <span class="checkbox-label">Display Car Color</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -157,8 +176,13 @@
             ng-click="raceTicker.jumpToVehicle(row.vehId)">
             <div class="row-accent"></div>
             <div class="race-pos">{{ row.position }}.</div>
-            <div class="position-shell">
-              <div class="position"><span>{{ row.carNumber }}</span></div>
+            <div class="position-shell" ng-if="raceTicker.settings.showCarNumberBoxes">
+              <div
+                class="position"
+                ng-class="{ 'has-car-color': raceTicker.settings.useCsvCarColors && !!row.carColorRgb }"
+                ng-style="raceTicker.getCarNumberStyle(row)">
+                <span>{{ row.carNumber }}</span>
+              </div>
             </div>
 
             <div class="identity">

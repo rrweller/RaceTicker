@@ -3,6 +3,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
   var DEFAULT_SERIES_TEXT = 'RACE'
   var DEFAULT_SHOW_LAPS_DOWN = true
   var DEFAULT_RELATIVE_GAP = false
+  var DEFAULT_SHOW_CAR_NUMBER_BOXES = true
+  var DEFAULT_USE_CSV_CAR_COLORS = true
   var APP_STYLESHEET_ID = 'raceTickerAppStylesheet'
   var APP_STYLESHEET_PATH = '/ui/modules/apps/RaceTicker/app.css'
   var UI_SCALE_OPTIONS = [
@@ -73,6 +75,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.loading = false
       vm.nameRequests = {}
       vm.vehicleNames = {}
+      vm.vehicleNumbers = {}
+      vm.carColorsByNumber = {}
       vm.vehiclesById = {}
       vm.outSequenceCounter = 0
       vm.jumpCounter = 0
@@ -104,6 +108,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         showFuel: false,
         showLapsDown: DEFAULT_SHOW_LAPS_DOWN,
         relativeGap: DEFAULT_RELATIVE_GAP,
+        showCarNumberBoxes: DEFAULT_SHOW_CAR_NUMBER_BOXES,
+        useCsvCarColors: DEFAULT_USE_CSV_CAR_COLORS,
         uiScale: 1,
         seriesText: DEFAULT_SERIES_TEXT,
         lineErrorTolerance: DEFAULT_LINE_ERROR_TOLERANCE
@@ -294,6 +300,26 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return String(name || '').toUpperCase()
       }
 
+      vm.getCarNumberStyle = function (row) {
+        if (!row || !vm.settings.useCsvCarColors || !row.carColorRgb) {
+          return null
+        }
+
+        var stateOverlay = ''
+        if (row.isOut || row.isWarning) {
+          stateOverlay = 'linear-gradient(180deg, rgba(255, 177, 177, 0.26), rgba(var(--rt-warning-rgb), 0.14)), '
+        } else if (row.isLeader) {
+          stateOverlay = 'linear-gradient(180deg, rgba(var(--rt-accent-rgb), 0.40), rgba(var(--rt-accent-rgb), 0.18)), '
+        }
+
+        return {
+          background:
+            stateOverlay +
+            'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)), ' +
+            'linear-gradient(180deg, rgba(' + row.carColorRgb + ', 0.24), rgba(' + row.carColorRgb + ', 0.12))'
+        }
+      }
+
       vm.formatPosition = function (position) {
         var numericPosition = parseInteger(position)
         if (numericPosition === null) {
@@ -346,10 +372,13 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var scriptState = normalizeLuaObject(payload.scriptState)
         var fuelData = normalizeLuaObject(payload.fuelData)
         var speedData = normalizeLuaObject(payload.speedData)
+        var carColors = normalizeLuaObject(payload.carColors)
         var playerVehId = parseInteger(payload.playerVehId)
         var lineErrorTolerance = getLineErrorTolerance(vm.settings.lineErrorTolerance)
         var lineEnd = 0
         var seenVehIds = {}
+
+        updateCarColors(carColors)
 
         vm.jumpCounter = vm.jumpCounter + 1
         if (vm.jumpCounter >= JUMP_INTERVAL) {
@@ -371,7 +400,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             return
           }
 
-          ensureVehicleName(vehId)
+          ensureVehicleIdentity(vehId)
           seenVehIds[vehId] = true
 
           var entry = vm.vehiclesById[vehId]
@@ -466,6 +495,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         angular.forEach(vm.vehiclesById, function (entry, vehId) {
           if (!seenVehIds[vehId]) {
             delete vm.vehiclesById[vehId]
+            delete vm.vehicleNames[vehId]
+            delete vm.vehicleNumbers[vehId]
+            delete vm.nameRequests[vehId]
           }
         })
 
@@ -522,7 +554,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         angular.forEach(rows, function (row, index) {
           row.position = index + 1
-          row.carNumber = '000'
+          row.carNumber = getVehicleNumber(row.vehId)
+          row.carColorHex = getCarColorForNumber(row.carNumber)
+          row.carColorRgb = hexColorToRgb(row.carColorHex)
           row.gapLabel = buildGapLabel(rows, index, lapLength, totalLaps, lineEnd)
           row.isLeader = index === 0
         })
@@ -578,7 +612,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         var timeBehind = Math.max(toNumber(anchorRow.sortTime, 0) - toNumber(row.sortTime, 0), 0)
 
-        return '+' + timeBehind.toFixed(2) + 's'
+        return '+' + timeBehind.toFixed(2)
       }
 
       function updateOutState(entry, scriptTime, now) {
@@ -1081,17 +1115,71 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.passAnimation.ghosts = []
       }
 
-      function ensureVehicleName(vehId) {
-        if (vehId === null || vm.vehicleNames[vehId] !== undefined || vm.nameRequests[vehId]) {
+      function ensureVehicleIdentity(vehId) {
+        if (vehId === null || vm.nameRequests[vehId]) {
+          return
+        }
+
+        if (vm.vehicleNames[vehId] !== undefined && vm.vehicleNumbers[vehId] !== undefined) {
           return
         }
 
         vm.nameRequests[vehId] = true
         bngApi.engineLua(
-          '(function() local obj = scenetree.findObject(' + vehId + '); return (obj and obj.getJBeamFilename and obj:getJBeamFilename()) or "" end)()',
-          function (name) {
+          '(function() ' +
+            'local vehId = ' + vehId + '; ' +
+            'local obj = scenetree.findObject(vehId); ' +
+            'if not obj then return { name = "", modFilename = "" } end; ' +
+            'local model = (obj.getJBeamFilename and obj:getJBeamFilename()) or ""; ' +
+            'local function appendCandidate(candidates, seen, value) ' +
+              'if type(value) == "string" and value ~= "" and not seen[value] then ' +
+                'seen[value] = true; ' +
+                'table.insert(candidates, value); ' +
+              'end; ' +
+            'end; ' +
+            'local function findModFilename() ' +
+              'local modExt = extensions and extensions.core_modmanager; ' +
+              'if not modExt or not modExt.getModFromPath then return "" end; ' +
+              'local candidates = {}; ' +
+              'local seen = {}; ' +
+              'local bundleExt = extensions and extensions.core_vehicle_manager; ' +
+              'local bundle = bundleExt and bundleExt.getVehicleData and bundleExt.getVehicleData(vehId) or nil; ' +
+              'local vdata = bundle and bundle.vdata or nil; ' +
+              'local vehicleDir = type(vdata and vdata.vehicleDirectory) == "string" and vdata.vehicleDirectory or ""; ' +
+              'local mainPartName = type(vdata and vdata.mainPartName) == "string" and vdata.mainPartName or model; ' +
+              'if vehicleDir ~= "" then ' +
+                'if string.sub(vehicleDir, -1) ~= "/" then vehicleDir = vehicleDir .. "/" end; ' +
+                'appendCandidate(candidates, seen, vehicleDir .. "info.json"); ' +
+                'appendCandidate(candidates, seen, vehicleDir .. mainPartName .. ".jbeam"); ' +
+                'appendCandidate(candidates, seen, vehicleDir .. model .. ".jbeam"); ' +
+                'if FS and FS.findFiles then ' +
+                  'local jbeamFiles = FS:findFiles(vehicleDir, "*.jbeam", -1, false, false); ' +
+                  'if type(jbeamFiles) == "table" then ' +
+                    'for fileIndex = 1, math.min(#jbeamFiles, 6) do ' +
+                      'appendCandidate(candidates, seen, jbeamFiles[fileIndex]); ' +
+                    'end; ' +
+                  'end; ' +
+                'end; ' +
+              'end; ' +
+              'if type(model) == "string" and model ~= "" then ' +
+                'appendCandidate(candidates, seen, "/vehicles/" .. model .. "/info.json"); ' +
+                'appendCandidate(candidates, seen, "/vehicles/" .. model .. "/" .. model .. ".jbeam"); ' +
+              'end; ' +
+              'for _, candidatePath in ipairs(candidates) do ' +
+                'local mod = modExt.getModFromPath(candidatePath); ' +
+                'if mod then ' +
+                  'return tostring(mod.filename or mod.fullpath or mod.modname or ""); ' +
+                'end; ' +
+              'end; ' +
+              'return ""; ' +
+            'end; ' +
+            'return { name = model, modFilename = findModFilename() }; ' +
+          'end)()',
+          function (info) {
             $scope.$evalAsync(function () {
-              vm.vehicleNames[vehId] = simplifyVehicleName(name, vehId)
+              var payload = info && typeof info === 'object' ? info : {}
+              vm.vehicleNames[vehId] = simplifyVehicleName(payload.name, vehId)
+              vm.vehicleNumbers[vehId] = extractCarNumber(payload.modFilename)
               delete vm.nameRequests[vehId]
             })
           }
@@ -1104,6 +1192,99 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return 'Vehicle ' + vehId
+      }
+
+      function getVehicleNumber(vehId) {
+        if (vm.vehicleNumbers[vehId] !== undefined) {
+          return vm.vehicleNumbers[vehId]
+        }
+
+        return '000'
+      }
+
+      function extractCarNumber(modFilename) {
+        var value = String(modFilename || '')
+        value = value.replace(/\\/g, '/')
+        value = value.replace(/^.*\//, '')
+        var match = value.match(/^(\d{1,3})-/)
+        if (!match) {
+          return '000'
+        }
+
+        return match[1]
+      }
+
+      function updateCarColors(rawColors) {
+        var normalizedColors = {}
+
+        angular.forEach(rawColors, function (rawColor, rawNumber) {
+          var numberKey = normalizeCarNumberKey(rawNumber)
+          var hexColor = normalizeHexColor(rawColor)
+          if (!numberKey || !hexColor) {
+            return
+          }
+
+          normalizedColors[numberKey] = hexColor
+        })
+
+        vm.carColorsByNumber = normalizedColors
+      }
+
+      function getCarColorForNumber(carNumber) {
+        var numberKey = normalizeCarNumberKey(carNumber)
+        if (!numberKey) {
+          return ''
+        }
+
+        return vm.carColorsByNumber[numberKey] || ''
+      }
+
+      function normalizeCarNumberKey(value) {
+        var numericValue = parseInteger(value)
+        if (numericValue === null || numericValue < 0) {
+          return ''
+        }
+
+        return String(numericValue)
+      }
+
+      function normalizeHexColor(value) {
+        var text = String(value == null ? '' : value).trim()
+        if (!text) {
+          return ''
+        }
+
+        if (text.charAt(0) === '#') {
+          text = text.slice(1)
+        }
+
+        if (/^[0-9a-fA-F]{3}$/.test(text)) {
+          text = text.charAt(0) + text.charAt(0) +
+            text.charAt(1) + text.charAt(1) +
+            text.charAt(2) + text.charAt(2)
+        }
+
+        if (!/^[0-9a-fA-F]{6}$/.test(text)) {
+          return ''
+        }
+
+        return '#' + text.toUpperCase()
+      }
+
+      function hexColorToRgb(hexColor) {
+        var normalizedHex = normalizeHexColor(hexColor)
+        if (!normalizedHex) {
+          return ''
+        }
+
+        var red = parseInt(normalizedHex.slice(1, 3), 16)
+        var green = parseInt(normalizedHex.slice(3, 5), 16)
+        var blue = parseInt(normalizedHex.slice(5, 7), 16)
+        if (!isFinite(red) || !isFinite(green) || !isFinite(blue)) {
+          return ''
+        }
+
+        return red + ', ' + green + ', ' + blue
       }
 
       function simplifyVehicleName(rawName, vehId) {
@@ -1137,6 +1318,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.settings.showFuel = !!config.showFuel
         vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
         vm.settings.relativeGap = config.relativeGap === undefined ? DEFAULT_RELATIVE_GAP : !!config.relativeGap
+        vm.settings.showCarNumberBoxes = config.showCarNumberBoxes === undefined ? DEFAULT_SHOW_CAR_NUMBER_BOXES : !!config.showCarNumberBoxes
+        vm.settings.useCsvCarColors = config.useCsvCarColors === undefined ? DEFAULT_USE_CSV_CAR_COLORS : !!config.useCsvCarColors
         vm.settings.uiScale = normalizeUiScale(config.uiScale)
         vm.ui.scaleInput = formatUiScaleInput(vm.settings.uiScale)
         vm.settings.seriesText = sanitizeSeriesText(config.seriesText, { allowEmpty: true })
@@ -1153,6 +1336,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           showFuel: !!vm.settings.showFuel,
           showLapsDown: !!vm.settings.showLapsDown,
           relativeGap: !!vm.settings.relativeGap,
+          showCarNumberBoxes: !!vm.settings.showCarNumberBoxes,
+          useCsvCarColors: !!vm.settings.useCsvCarColors,
           uiScale: normalizeUiScale(vm.settings.uiScale),
           seriesText: sanitizeSeriesText(vm.settings.seriesText, { allowEmpty: true }),
           lineErrorTolerance: getLineErrorTolerance(vm.settings.lineErrorTolerance),

@@ -1,6 +1,7 @@
 local M = {}
 
 local uiConfigPath = "/settings/raceTicker.json"
+local carColorsCsvPath = "/settings/raceTicker_car_colors.csv"
 local uiScaleOptions = {0.5, 2 / 3, 0.75, 1, 1.25, 1.5}
 local lineErrorToleranceOptions = {2, 3, 4, 5, 6, 7, 8}
 local minLineErrorTolerance = 2
@@ -8,17 +9,22 @@ local maxLineErrorTolerance = 8
 local defaultLineErrorTolerance = 5
 local defaultShowLapsDown = true
 local defaultRelativeGap = false
+local defaultShowCarNumberBoxes = true
+local defaultUseCsvCarColors = true
 
 local scriptStateByVehId = {}
 local fuelByVehId = {}
 local speedByVehId = {}
 local lastSeenMsByVehId = {}
 local uiConfigCache = nil
+local carColorsCache = {}
 
 local activeUntilMs = 0
 local lastPollMs = 0
 local pollIntervalMs = 200
 local staleAfterMs = 1500
+local lastCarColorsRefreshMs = -1
+local carColorsRefreshIntervalMs = 2000
 
 local function nowMs()
   return Engine.Platform.getSystemTimeMS()
@@ -102,11 +108,102 @@ local function sanitizeUiConfig(config)
     showFuel = data.showFuel and true or false,
     showLapsDown = data.showLapsDown == nil and defaultShowLapsDown or (data.showLapsDown and true or false),
     relativeGap = data.relativeGap == nil and defaultRelativeGap or (data.relativeGap and true or false),
+    showCarNumberBoxes = data.showCarNumberBoxes == nil and defaultShowCarNumberBoxes or (data.showCarNumberBoxes and true or false),
+    useCsvCarColors = data.useCsvCarColors == nil and defaultUseCsvCarColors or (data.useCsvCarColors and true or false),
     uiScale = normalizeUiScale(data.uiScale),
     seriesText = sanitizeSeriesText(data.seriesText),
     lineErrorTolerance = normalizeLineErrorTolerance(data.lineErrorTolerance),
     manualLapCount = math.max(math.floor(tonumber(data.manualLapCount) or 0), 0)
   }
+end
+
+local function trim(value)
+  return tostring(value or ""):match("^%s*(.-)%s*$") or ""
+end
+
+local function normalizeCarNumberKey(value)
+  local numericValue = tonumber(value)
+  if not numericValue then
+    return nil
+  end
+
+  numericValue = math.floor(numericValue)
+  if numericValue < 0 then
+    return nil
+  end
+
+  return tostring(numericValue)
+end
+
+local function normalizeHexColor(value)
+  local hex = trim(value)
+  if hex == "" then
+    return nil
+  end
+
+  if hex:sub(1, 1) == "#" then
+    hex = hex:sub(2)
+  end
+
+  if hex:match("^[%x][%x][%x]$") then
+    local h1, h2, h3 = hex:sub(1, 1), hex:sub(2, 2), hex:sub(3, 3)
+    hex = h1 .. h1 .. h2 .. h2 .. h3 .. h3
+  end
+
+  if not hex:match("^[%x][%x][%x][%x][%x][%x]$") then
+    return nil
+  end
+
+  return "#" .. string.upper(hex)
+end
+
+local function parseCarColorsCsv(content)
+  local result = {}
+  if type(content) ~= "string" then
+    return result
+  end
+
+  local lineIndex = 0
+  for rawLine in content:gmatch("[^\r\n]+") do
+    lineIndex = lineIndex + 1
+    local line = rawLine
+    if lineIndex == 1 then
+      line = line:gsub("^\239\187\191", "")
+    end
+
+    line = trim(line)
+    if line ~= "" then
+      local numberRaw, colorRaw = line:match("^([^,]+),(.+)$")
+      if numberRaw and colorRaw then
+        local numberKey = normalizeCarNumberKey(numberRaw)
+        local hexColor = normalizeHexColor(colorRaw)
+        if numberKey and hexColor then
+          result[numberKey] = hexColor
+        end
+      end
+    end
+  end
+
+  return result
+end
+
+local function ensureCarColorsCsvExists()
+  if FS and FS.fileExists and FS:fileExists(carColorsCsvPath) then
+    return
+  end
+
+  writeFile(carColorsCsvPath, "carnumber,color\n")
+end
+
+local function refreshCarColors(force)
+  local currentTimeMs = nowMs()
+  if not force and lastCarColorsRefreshMs >= 0 and (currentTimeMs - lastCarColorsRefreshMs) < carColorsRefreshIntervalMs then
+    return
+  end
+
+  lastCarColorsRefreshMs = currentTimeMs
+  ensureCarColorsCsvExists()
+  carColorsCache = parseCarColorsCsv(readFile(carColorsCsvPath))
 end
 
 local function getUiConfig()
@@ -202,6 +299,7 @@ end
 local function getState()
   ping(3)
   pruneStale()
+  refreshCarColors(false)
 
   local scriptState = {}
   local fuelData = {}
@@ -223,6 +321,8 @@ local function getState()
     scriptState = scriptState,
     fuelData = fuelData,
     speedData = speedData,
+    carColors = copyTable(carColorsCache),
+    carColorsCsvPath = carColorsCsvPath,
     playerVehId = be and be.getPlayerVehicleID and be:getPlayerVehicleID(0) or nil,
     timestamp = nowMs()
   }

@@ -57,7 +57,7 @@
     border: 0;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
-      linear-gradient(180deg, var(--rt-bg-top) 0%, var(--rt-bg-mid) 16%, var(--rt-bg-low) 100%);
+      linear-gradient(180deg, var(--rt-bg-low) 0%, var(--rt-bg-mid) 16%, var(--rt-bg-top) 100%);
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.05),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -474,6 +474,64 @@
     box-shadow: inset 0 0 0 1px rgba(var(--rt-accent-rgb), 0.28);
   }
 
+  .race-ticker .checkbox-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 74px;
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .race-ticker .checkbox-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--rt-accent);
+    cursor: pointer;
+  }
+
+  .race-ticker .checkbox-toggle .checkbox-text {
+    min-width: 22px;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  .race-ticker .config-row.config-row-inline-toggles {
+    justify-content: flex-start;
+  }
+
+  .race-ticker .car-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    row-gap: 8px;
+    width: 100%;
+  }
+
+  .race-ticker .checkbox-toggle.compact {
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 7px;
+  }
+
+  .race-ticker .checkbox-toggle .checkbox-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.90);
+    white-space: nowrap;
+  }
+
   .race-ticker .text-input {
     width: 118px;
     padding: 8px 10px 6px;
@@ -639,14 +697,18 @@
   }
 
   .race-ticker .race-pos {
-    min-width: 24px;
+    width: 30px;
+    min-width: 30px;
     flex-shrink: 0;
-    text-align: right;
-    font-size: 14px;
+    padding-left: 4px;
+    text-align: left;
+    font-size: 16px;
     line-height: 1;
     font-weight: 800;
     letter-spacing: 0.02em;
     color: rgba(255, 255, 255, 0.96);
+    font-variant-numeric: tabular-nums;
+    box-sizing: border-box;
   }
 
   .race-ticker .position-shell {
@@ -685,6 +747,12 @@
     background: linear-gradient(180deg, rgba(255, 177, 177, 0.26), rgba(var(--rt-warning-rgb), 0.14));
   }
 
+  .race-ticker .board-row .position.has-car-color,
+  .race-ticker .board-row.is-leader .position.has-car-color,
+  .race-ticker .board-row.is-warning .position.has-car-color {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
   .race-ticker .identity {
     min-width: 0;
     flex: 1;
@@ -701,7 +769,7 @@
     white-space: nowrap;
     font-size: 14px;
     line-height: 1;
-    font-weight: 800;
+    font-weight: 400;
     letter-spacing: 0.02em;
     text-transform: uppercase;
   }
@@ -774,7 +842,7 @@
   .race-ticker .gap {
     font-size: 16px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 200;
     font-style: italic;
     letter-spacing: 0.03em;
     color: rgba(255, 255, 255, 0.94);
