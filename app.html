@@ -175,7 +175,7 @@
             ng-class="{ 'is-leader': row.isLeader, 'is-focus': row.isPlayerFocus, 'is-warning': row.isWarning, 'is-out': row.isOut }"
             ng-click="raceTicker.jumpToVehicle(row.vehId)">
             <div class="row-accent"></div>
-            <div class="race-pos">{{ row.position }}.</div>
+            <div class="race-pos">{{ row.position }}</div>
             <div class="position-shell" ng-if="raceTicker.settings.showCarNumberBoxes">
               <div
                 class="position"
