@@ -134,7 +134,7 @@
     line-height: 1;
     letter-spacing: 0.18em;
     font-style: italic;
-    font-weight: 400;
+    font-weight: 600;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.85);
   }
@@ -209,7 +209,7 @@
       linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.10), transparent 40%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
     color: rgba(255, 255, 255, 1);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -468,6 +468,14 @@
     box-sizing: border-box;
   }
 
+  .race-ticker .board-pass-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 4;
+  }
+
   .race-ticker .board::-webkit-scrollbar {
     width: 5px;
   }
@@ -499,15 +507,20 @@
     box-shadow:
       0 10px 22px rgba(0, 0, 0, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease;
+    transition: box-shadow 140ms ease, background 140ms ease, border-color 140ms ease;
   }
 
   .race-ticker .board-row:first-child {
     margin-top: 0;
   }
 
+  .race-ticker .board-row-ghost {
+    z-index: 5;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
   .race-ticker .board-row:hover {
-    transform: translateY(-1px);
     box-shadow:
       0 14px 24px rgba(0, 0, 0, 0.22),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -865,10 +878,12 @@
         </div>
 
         <div class="board" ng-if="raceTicker.state.rows.length">
+          <div class="board-pass-layer" aria-hidden="true"></div>
           <button
             type="button"
             class="board-row"
             ng-repeat="row in raceTicker.state.rows track by row.vehId"
+            ng-attr-data-veh-id="{{ row.vehId }}"
             ng-class="{ 'is-leader': row.isLeader, 'is-focus': row.isPlayerFocus, 'is-warning': row.isWarning }"
             ng-click="raceTicker.jumpToVehicle(row.vehId)">
             <div class="row-accent"></div>

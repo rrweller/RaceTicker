@@ -16,8 +16,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
     replace: false,
     restrict: 'E',
     scope: false,
-    link: function (scope) {
+    link: function (scope, element) {
       var ctrl = scope.raceTicker
+      ctrl.bindRootElement(element[0])
       ctrl.initialLoad()
 
       var pollPromise = $interval(function () {
@@ -26,6 +27,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       scope.$on('$destroy', function () {
         $interval.cancel(pollPromise)
+        ctrl.disposeAnimationResources()
         bngApi.engineLua('if extensions.raceTickerScriptAI then extensions.raceTickerScriptAI.ping(0) end')
       })
 
@@ -51,12 +53,40 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       var STALL_GRACE_SECONDS = 4
       var STALL_MIN_SCRIPT_TIME = 1.5
       var STALL_SPEED_THRESHOLD = 1
+      var START_REORDER_PAUSE_MS = 2000
+      var START_RESET_MAX_LEADER_TIME = 3
+      var START_RESET_DROP_THRESHOLD = 2
+      var PASS_STABLE_MS = 450
+      var PASS_COOLDOWN_MS = 700
+      var PASS_FORCE_COMMIT_MS = 1400
+      var LAYOUT_LOCK_MS = 360
+      var PASS_ANIMATION_DURATION_MS = 440
+      var PASS_ANIMATION_EASING = 'cubic-bezier(0.22, 0.86, 0.28, 1)'
       var vm = this
       vm.loading = false
       vm.nameRequests = {}
       vm.vehicleNames = {}
       vm.vehiclesById = {}
       vm.jumpCounter = 0
+      vm.rootElement = null
+      vm.passAnimation = {
+        raf1: 0,
+        raf2: 0,
+        active: [],
+        ghosts: []
+      }
+      vm.orderState = {
+        displayKey: '',
+        displayOrder: [],
+        candidateKey: '',
+        candidateSinceMs: 0,
+        mismatchSinceMs: 0,
+        startPauseUntilMs: 0,
+        hadRows: false,
+        lastLeaderSortTime: null,
+        cooldownUntilMs: 0,
+        layoutLockUntilMs: 0
+      }
       vm.ui = {
         settingsOpen: false
       }
@@ -78,10 +108,19 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       vm.initialLoad = function () {
-        applyUiConfig(readLocalUiConfig())
+        var localUiConfig = readLocalUiConfig()
+        applyUiConfig(localUiConfig)
         bngApi.engineLua('extensions.load("raceTickerScriptAI")')
-        requestSavedUiConfig()
+        requestSavedUiConfig(localUiConfig)
         vm.refresh()
+      }
+
+      vm.bindRootElement = function (element) {
+        vm.rootElement = element || null
+      }
+
+      vm.disposeAnimationResources = function () {
+        stopPassAnimations()
       }
 
       vm.refresh = function () {
@@ -113,6 +152,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       vm.toggleSettings = function () {
+        stopPassAnimations()
+        vm.orderState.layoutLockUntilMs = Date.now() + LAYOUT_LOCK_MS
         vm.ui.settingsOpen = !vm.ui.settingsOpen
       }
 
@@ -196,7 +237,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       vm.seriesLabel = function () {
-        return sanitizeSeriesText(vm.settings.seriesText)
+        return sanitizeSeriesText(vm.settings.seriesText, { allowEmpty: true })
       }
 
       vm.bannerLabel = function () {
@@ -239,12 +280,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         )
       }
 
-      function requestSavedUiConfig() {
+      function requestSavedUiConfig(localUiConfig) {
         bngApi.engineLua(
           '(function() if not extensions.raceTickerScriptAI then extensions.load("raceTickerScriptAI") end return extensions.raceTickerScriptAI and extensions.raceTickerScriptAI.getUiConfig and extensions.raceTickerScriptAI.getUiConfig() or nil end)()',
           function (config) {
             $scope.$evalAsync(function () {
-              applyUiConfig(config)
+              applyUiConfig(mergeUiConfig(config, localUiConfig))
               persistUiConfig()
               vm.refresh()
             })
@@ -252,8 +293,22 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         )
       }
 
+      function mergeUiConfig(primaryConfig, overrideConfig) {
+        var merged = {}
+
+        if (primaryConfig && typeof primaryConfig === 'object') {
+          angular.extend(merged, primaryConfig)
+        }
+
+        if (overrideConfig && typeof overrideConfig === 'object') {
+          angular.extend(merged, overrideConfig)
+        }
+
+        return merged
+      }
+
       function applyState(payload) {
-        var now = toNumber(payload.timestamp, Date.now())
+        var now = Date.now()
         var scriptState = normalizeLuaObject(payload.scriptState)
         var fuelData = normalizeLuaObject(payload.fuelData)
         var speedData = normalizeLuaObject(payload.speedData)
@@ -391,6 +446,17 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return left.vehId - right.vehId
         })
 
+        angular.forEach(rows, function (row, index) {
+          row.name = getVehicleName(row.vehId)
+          row.fuelLabel = formatFuelLabel(row.fuel)
+          row.isPlayerFocus = playerVehId !== null && playerVehId === row.vehId
+          row.isWarning = row.crashed || row.jumped || row.stalled
+        })
+
+        updateRunStartPause(rows, now)
+        var displayResolution = resolveDisplayRows(rows, now)
+        rows = displayResolution.rows
+
         var totalLaps = Math.max(toNumber(vm.state.manualLapCount, 0), 0)
         var lapLength = totalLaps > 0 && lineEnd > 0 ? lineEnd / totalLaps : 0
         var leaderTime = rows.length > 0 ? rows[0].sortTime : 0
@@ -398,12 +464,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         angular.forEach(rows, function (row, index) {
           row.position = index + 1
-          row.name = getVehicleName(row.vehId)
           row.gapLabel = buildGapLabel(rows, index, lapLength, totalLaps, lineEnd)
-          row.fuelLabel = formatFuelLabel(row.fuel)
           row.isLeader = index === 0
-          row.isPlayerFocus = playerVehId !== null && playerVehId === row.vehId
-          row.isWarning = row.crashed || row.jumped || row.stalled
         })
 
         vm.state.totalLaps = totalLaps
@@ -413,6 +475,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.state.statusText = rows.length > 0
           ? 'Select a row to jump to that car.'
           : 'Start a ScriptAI line in Script AI Manager to populate the ticker.'
+
+        if (displayResolution.shouldAnimate && displayResolution.previousGeometry) {
+          schedulePassAnimation(displayResolution.previousGeometry)
+        }
       }
 
       function buildGapLabel(rows, index, lapLength, totalLaps, lineEnd) {
@@ -463,6 +529,462 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           entry.stalled = true
           entry.storedScriptTime = scriptTime
         }
+      }
+
+      function updateRunStartPause(rows, now) {
+        var hasRows = !!(rows && rows.length)
+        var leaderSortTime = hasRows ? toNumber(rows[0].sortTime, 0) : null
+        var previousLeaderSortTime = toNumber(vm.orderState.lastLeaderSortTime, null)
+        var isFreshStart = hasRows && !vm.orderState.hadRows
+        var isRunReset = false
+
+        if (hasRows && previousLeaderSortTime !== null && leaderSortTime !== null) {
+          isRunReset = leaderSortTime <= START_RESET_MAX_LEADER_TIME &&
+            (previousLeaderSortTime - leaderSortTime) >= START_RESET_DROP_THRESHOLD
+        }
+
+        if (isFreshStart || isRunReset) {
+          vm.orderState.startPauseUntilMs = now + START_REORDER_PAUSE_MS
+          vm.orderState.candidateKey = ''
+          vm.orderState.candidateSinceMs = 0
+          vm.orderState.mismatchSinceMs = 0
+          vm.orderState.cooldownUntilMs = 0
+        }
+
+        vm.orderState.hadRows = hasRows
+        vm.orderState.lastLeaderSortTime = hasRows ? leaderSortTime : null
+      }
+
+      function resolveDisplayRows(canonicalRows, now) {
+        var canonicalKey = buildOrderKey(canonicalRows)
+        var displayedRows = mapRowsToDisplayOrder(canonicalRows, vm.orderState.displayOrder)
+        var displayKey = buildOrderKey(displayedRows)
+        var isFirstRender = !displayKey
+        var hasSetChange = !isFirstRender && !hasSameVehSet(displayedRows, canonicalRows)
+        var shouldAnimate = false
+        var previousGeometry = null
+
+        if (isFirstRender || hasSetChange) {
+          vm.orderState.displayOrder = extractVehIds(canonicalRows)
+          vm.orderState.displayKey = canonicalKey
+          vm.orderState.candidateKey = ''
+          vm.orderState.candidateSinceMs = 0
+          vm.orderState.mismatchSinceMs = 0
+          return {
+            rows: canonicalRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        if (canonicalKey === displayKey) {
+          vm.orderState.displayOrder = extractVehIds(displayedRows)
+          vm.orderState.displayKey = displayKey
+          vm.orderState.candidateKey = ''
+          vm.orderState.candidateSinceMs = 0
+          vm.orderState.mismatchSinceMs = 0
+          return {
+            rows: displayedRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        if (now < vm.orderState.startPauseUntilMs) {
+          vm.orderState.candidateKey = ''
+          vm.orderState.candidateSinceMs = 0
+          vm.orderState.mismatchSinceMs = 0
+          return {
+            rows: displayedRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        if (!vm.orderState.mismatchSinceMs) {
+          vm.orderState.mismatchSinceMs = now
+        }
+
+        var candidateKey = buildReorderCandidateKey(displayedRows, canonicalRows)
+        if (vm.orderState.candidateKey !== candidateKey) {
+          vm.orderState.candidateKey = candidateKey
+          vm.orderState.candidateSinceMs = now
+          return {
+            rows: displayedRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        var candidateStable = (now - vm.orderState.candidateSinceMs) >= PASS_STABLE_MS
+        var forceCommit = (now - vm.orderState.mismatchSinceMs) >= PASS_FORCE_COMMIT_MS
+        if (!candidateStable && !forceCommit) {
+          return {
+            rows: displayedRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        var layoutLocked = now < vm.orderState.layoutLockUntilMs
+        var cooldownLocked = now < vm.orderState.cooldownUntilMs
+        if (!forceCommit && (layoutLocked || cooldownLocked)) {
+          return {
+            rows: displayedRows,
+            shouldAnimate: false,
+            previousGeometry: null
+          }
+        }
+
+        if (!layoutLocked && !cooldownLocked) {
+          previousGeometry = captureBoardRowGeometry()
+        }
+        vm.orderState.displayOrder = extractVehIds(canonicalRows)
+        vm.orderState.displayKey = canonicalKey
+        vm.orderState.candidateKey = ''
+        vm.orderState.candidateSinceMs = 0
+        vm.orderState.mismatchSinceMs = 0
+        shouldAnimate = !!previousGeometry
+        if (shouldAnimate) {
+          vm.orderState.cooldownUntilMs = now + PASS_COOLDOWN_MS
+        }
+
+        return {
+          rows: canonicalRows,
+          shouldAnimate: shouldAnimate,
+          previousGeometry: previousGeometry
+        }
+      }
+
+      function buildOrderKey(rows) {
+        if (!rows || !rows.length) {
+          return ''
+        }
+
+        var ids = []
+        angular.forEach(rows, function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          ids.push(String(row.vehId))
+        })
+
+        return ids.join('|')
+      }
+
+      function extractVehIds(rows) {
+        var ids = []
+        angular.forEach(rows || [], function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          ids.push(row.vehId)
+        })
+
+        return ids
+      }
+
+      function mapRowsToDisplayOrder(canonicalRows, displayOrder) {
+        var rowsByVehId = {}
+        var orderedRows = []
+
+        angular.forEach(canonicalRows || [], function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          rowsByVehId[String(row.vehId)] = row
+        })
+
+        angular.forEach(displayOrder || [], function (vehId) {
+          var key = String(vehId)
+          if (!rowsByVehId[key]) {
+            return
+          }
+
+          orderedRows.push(rowsByVehId[key])
+          delete rowsByVehId[key]
+        })
+
+        angular.forEach(canonicalRows || [], function (row) {
+          var key
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          key = String(row.vehId)
+          if (!rowsByVehId[key]) {
+            return
+          }
+
+          orderedRows.push(rowsByVehId[key])
+          delete rowsByVehId[key]
+        })
+
+        return orderedRows
+      }
+
+      function hasSameVehSet(leftRows, rightRows) {
+        var counts = {}
+        var key
+
+        if ((leftRows || []).length !== (rightRows || []).length) {
+          return false
+        }
+
+        angular.forEach(leftRows || [], function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          key = String(row.vehId)
+          counts[key] = (counts[key] || 0) + 1
+        })
+
+        angular.forEach(rightRows || [], function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          key = String(row.vehId)
+          if (!counts[key]) {
+            counts.__missing = true
+            return
+          }
+
+          counts[key] = counts[key] - 1
+        })
+
+        if (counts.__missing) {
+          return false
+        }
+
+        for (key in counts) {
+          if (!Object.prototype.hasOwnProperty.call(counts, key) || key === '__missing') {
+            continue
+          }
+
+          if (counts[key] !== 0) {
+            return false
+          }
+        }
+
+        return true
+      }
+
+      function buildReorderCandidateKey(displayRows, canonicalRows) {
+        var maxLength = Math.max((displayRows || []).length, (canonicalRows || []).length)
+        var index
+
+        for (index = 0; index < maxLength; index++) {
+          var displayRow = displayRows[index]
+          var canonicalRow = canonicalRows[index]
+          var displayVehId = displayRow && displayRow.vehId !== undefined && displayRow.vehId !== null ? String(displayRow.vehId) : ''
+          var canonicalVehId = canonicalRow && canonicalRow.vehId !== undefined && canonicalRow.vehId !== null ? String(canonicalRow.vehId) : ''
+
+          if (displayVehId === canonicalVehId) {
+            continue
+          }
+
+          var displayNext = displayRows[index + 1]
+          var canonicalNext = canonicalRows[index + 1]
+          var displayNextVehId = displayNext && displayNext.vehId !== undefined && displayNext.vehId !== null ? String(displayNext.vehId) : ''
+          var canonicalNextVehId = canonicalNext && canonicalNext.vehId !== undefined && canonicalNext.vehId !== null ? String(canonicalNext.vehId) : ''
+          return index + ':' + canonicalVehId + ':' + displayVehId + ':' + canonicalNextVehId + ':' + displayNextVehId
+        }
+
+        return buildOrderKey(canonicalRows)
+      }
+
+      function captureBoardRowGeometry() {
+        if (!vm.rootElement || typeof window === 'undefined') {
+          return null
+        }
+
+        var boardElement = vm.rootElement.querySelector('.board')
+        if (!boardElement) {
+          return null
+        }
+
+        var passLayer = boardElement.querySelector('.board-pass-layer')
+        if (!passLayer) {
+          return null
+        }
+
+        var boardRect = boardElement.getBoundingClientRect()
+        var rowElements = boardElement.querySelectorAll('.board-row[data-veh-id]')
+        var rowsByVehId = {}
+
+        angular.forEach(rowElements, function (rowElement) {
+          var vehId = rowElement.getAttribute('data-veh-id')
+          var rowRect
+          if (!vehId) {
+            return
+          }
+
+          rowRect = rowElement.getBoundingClientRect()
+          rowsByVehId[vehId] = {
+            top: rowRect.top - boardRect.top + boardElement.scrollTop,
+            left: rowRect.left - boardRect.left + boardElement.scrollLeft,
+            width: rowRect.width,
+            height: rowRect.height
+          }
+        })
+
+        return {
+          boardElement: boardElement,
+          passLayer: passLayer,
+          rowsByVehId: rowsByVehId
+        }
+      }
+
+      function schedulePassAnimation(previousGeometry) {
+        if (!previousGeometry || !previousGeometry.boardElement || !previousGeometry.passLayer || typeof window === 'undefined') {
+          return
+        }
+
+        stopPassAnimations()
+
+        vm.passAnimation.raf1 = window.requestAnimationFrame(function () {
+          vm.passAnimation.raf1 = 0
+          vm.passAnimation.raf2 = window.requestAnimationFrame(function () {
+            vm.passAnimation.raf2 = 0
+            playPassAnimation(previousGeometry)
+          })
+        })
+      }
+
+      function playPassAnimation(previousGeometry) {
+        var boardElement = previousGeometry.boardElement
+        var passLayer = previousGeometry.passLayer
+        var boardRect
+        var rowElements
+
+        if (!boardElement || !passLayer) {
+          return
+        }
+
+        boardRect = boardElement.getBoundingClientRect()
+        rowElements = boardElement.querySelectorAll('.board-row[data-veh-id]')
+
+        angular.forEach(rowElements, function (rowElement) {
+          var vehId = rowElement.getAttribute('data-veh-id')
+          var previousRow = previousGeometry.rowsByVehId[vehId]
+          var currentRect
+          var currentTop
+          var deltaY
+          var ghostNode
+          var animation
+
+          if (!vehId || !previousRow) {
+            return
+          }
+
+          currentRect = rowElement.getBoundingClientRect()
+          currentTop = currentRect.top - boardRect.top + boardElement.scrollTop
+          deltaY = currentTop - previousRow.top
+          if (Math.abs(deltaY) < 1) {
+            return
+          }
+
+          ghostNode = rowElement.cloneNode(true)
+          ghostNode.classList.add('board-row-ghost')
+          ghostNode.style.position = 'absolute'
+          ghostNode.style.pointerEvents = 'none'
+          ghostNode.style.marginTop = '0'
+          ghostNode.style.top = previousRow.top + 'px'
+          ghostNode.style.left = previousRow.left + 'px'
+          ghostNode.style.width = previousRow.width + 'px'
+          ghostNode.style.height = previousRow.height + 'px'
+          ghostNode.style.transform = 'translate3d(0, 0, 0)'
+          passLayer.appendChild(ghostNode)
+          vm.passAnimation.ghosts.push(ghostNode)
+
+          if (!ghostNode.animate) {
+            ghostNode.style.transition = 'transform ' + PASS_ANIMATION_DURATION_MS + 'ms ' + PASS_ANIMATION_EASING
+            ghostNode.style.transform = 'translate3d(0, ' + deltaY.toFixed(2) + 'px, 0)'
+            window.setTimeout(function () {
+              removePassGhostNode(ghostNode)
+            }, PASS_ANIMATION_DURATION_MS + 40)
+            return
+          }
+
+          animation = ghostNode.animate(
+            [
+              { transform: 'translate3d(0, 0, 0)' },
+              { transform: 'translate3d(0, ' + deltaY.toFixed(2) + 'px, 0)' }
+            ],
+            {
+              duration: PASS_ANIMATION_DURATION_MS,
+              easing: PASS_ANIMATION_EASING,
+              fill: 'forwards'
+            }
+          )
+
+          animation.onfinish = function () {
+            removePassAnimation(animation)
+            removePassGhostNode(ghostNode)
+          }
+
+          animation.oncancel = function () {
+            removePassAnimation(animation)
+            removePassGhostNode(ghostNode)
+          }
+
+          vm.passAnimation.active.push(animation)
+        })
+      }
+
+      function removePassAnimation(animation) {
+        var index = vm.passAnimation.active.indexOf(animation)
+        if (index !== -1) {
+          vm.passAnimation.active.splice(index, 1)
+        }
+      }
+
+      function removePassGhostNode(ghostNode) {
+        var index = vm.passAnimation.ghosts.indexOf(ghostNode)
+        if (index !== -1) {
+          vm.passAnimation.ghosts.splice(index, 1)
+        }
+
+        if (ghostNode && ghostNode.parentNode) {
+          ghostNode.parentNode.removeChild(ghostNode)
+        }
+      }
+
+      function stopPassAnimations() {
+        if (typeof window !== 'undefined' && vm.passAnimation.raf1) {
+          window.cancelAnimationFrame(vm.passAnimation.raf1)
+          vm.passAnimation.raf1 = 0
+        }
+
+        if (typeof window !== 'undefined' && vm.passAnimation.raf2) {
+          window.cancelAnimationFrame(vm.passAnimation.raf2)
+          vm.passAnimation.raf2 = 0
+        }
+
+        angular.forEach(vm.passAnimation.active, function (animation) {
+          if (!animation || typeof animation.cancel !== 'function') {
+            return
+          }
+
+          try {
+            animation.cancel()
+          } catch (error) {
+            return
+          }
+        })
+        vm.passAnimation.active = []
+
+        angular.forEach(vm.passAnimation.ghosts, function (ghostNode) {
+          if (ghostNode && ghostNode.parentNode) {
+            ghostNode.parentNode.removeChild(ghostNode)
+          }
+        })
+        vm.passAnimation.ghosts = []
       }
 
       function ensureVehicleName(vehId) {
@@ -521,7 +1043,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.settings.showFuel = !!config.showFuel
         vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
         vm.settings.uiScale = getUiScaleOption(config.uiScale).value
-        vm.settings.seriesText = sanitizeSeriesText(config.seriesText)
+        vm.settings.seriesText = sanitizeSeriesText(config.seriesText, { allowEmpty: true })
         vm.settings.lineErrorTolerance = getLineErrorTolerance(config.lineErrorTolerance)
 
         var manualLapCount = parseInteger(config.manualLapCount)
@@ -535,7 +1057,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           showFuel: !!vm.settings.showFuel,
           showLapsDown: !!vm.settings.showLapsDown,
           uiScale: getUiScaleOption(vm.settings.uiScale).value,
-          seriesText: sanitizeSeriesText(vm.settings.seriesText),
+          seriesText: sanitizeSeriesText(vm.settings.seriesText, { allowEmpty: true }),
           lineErrorTolerance: getLineErrorTolerance(vm.settings.lineErrorTolerance),
           manualLapCount: Math.max(parseInteger(vm.state.manualLapCount) || 0, 0)
         }
@@ -578,10 +1100,16 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return true
       }
 
-      function sanitizeSeriesText(value) {
-        var text = String(value || '')
+      function sanitizeSeriesText(value, options) {
+        var allowEmpty = !!(options && options.allowEmpty)
+        var hasValue = value !== undefined && value !== null
+        var text = hasValue ? String(value) : ''
         text = text.replace(/\s+/g, ' ').trim()
         if (!text) {
+          if (allowEmpty && hasValue) {
+            return ''
+          }
+
           return DEFAULT_SERIES_TEXT
         }
 
