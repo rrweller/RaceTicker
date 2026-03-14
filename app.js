@@ -1,4 +1,15 @@
 angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($interval) {
+  var UI_CONFIG_STORAGE_KEY = 'apps:raceTicker.uiConfig'
+  var DEFAULT_SERIES_TEXT = 'RACE'
+  var UI_SCALE_OPTIONS = [
+    { label: '50%', value: 0.5 },
+    { label: '66%', value: 2 / 3 },
+    { label: '75%', value: 0.75 },
+    { label: '100%', value: 1 },
+    { label: '125%', value: 1.25 },
+    { label: '150%', value: 1.5 }
+  ]
+
   return {
     templateUrl: '/ui/modules/apps/RaceTicker/app.html',
     replace: false,
@@ -41,9 +52,14 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.vehicleNames = {}
       vm.vehiclesById = {}
       vm.jumpCounter = 0
+      vm.ui = {
+        settingsOpen: false
+      }
       vm.settings = {
         showFuel: false,
-        showLapsDown: false
+        showLapsDown: false,
+        uiScale: 1,
+        seriesText: DEFAULT_SERIES_TEXT
       }
       vm.state = {
         totalLaps: 0,
@@ -55,7 +71,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       vm.initialLoad = function () {
+        applyUiConfig(readLocalUiConfig())
         bngApi.engineLua('extensions.load("raceTickerScriptAI")')
+        requestSavedUiConfig()
         vm.refresh()
       }
 
@@ -77,28 +95,100 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       vm.incrementManualLaps = function () {
         vm.state.manualLapCount = vm.state.manualLapCount + 1
+        persistUiConfig()
         vm.refresh()
       }
 
       vm.decrementManualLaps = function () {
         vm.state.manualLapCount = Math.max(vm.state.manualLapCount - 1, 0)
+        persistUiConfig()
         vm.refresh()
       }
 
-      vm.currentLapLabel = function () {
-        if (vm.state.totalLaps > 0) {
-          return 'Lap ' + vm.state.leaderLap + ' / ' + vm.state.totalLaps
+      vm.toggleSettings = function () {
+        vm.ui.settingsOpen = !vm.ui.settingsOpen
+      }
+
+      vm.setFuelVisible = function (visible) {
+        vm.settings.showFuel = !!visible
+        persistUiConfig()
+        vm.refresh()
+      }
+
+      vm.setLeaderDisplayMode = function (useLapsDown) {
+        vm.settings.showLapsDown = !!useLapsDown
+        persistUiConfig()
+        vm.refresh()
+      }
+
+      vm.incrementScale = function () {
+        var currentIndex = getUiScaleIndex(vm.settings.uiScale)
+        vm.settings.uiScale = UI_SCALE_OPTIONS[Math.min(currentIndex + 1, UI_SCALE_OPTIONS.length - 1)].value
+        persistUiConfig()
+      }
+
+      vm.decrementScale = function () {
+        var currentIndex = getUiScaleIndex(vm.settings.uiScale)
+        vm.settings.uiScale = UI_SCALE_OPTIONS[Math.max(currentIndex - 1, 0)].value
+        persistUiConfig()
+      }
+
+      vm.scaleLabel = function () {
+        return getUiScaleOption(vm.settings.uiScale).label
+      }
+
+      vm.scaleStyle = function () {
+        var scale = getUiScaleOption(vm.settings.uiScale).value
+        var style = {
+          transform: 'scale(' + scale + ')'
+        }
+
+        if (scale > 1) {
+          style.width = (100 / scale).toFixed(3) + '%'
+          style.height = (100 / scale).toFixed(3) + '%'
+        } else {
+          style.width = '100%'
+          style.height = '100%'
+        }
+
+        return style
+      }
+
+      vm.persistUiConfig = function () {
+        persistUiConfig()
+      }
+
+      vm.seriesLabel = function () {
+        return sanitizeSeriesText(vm.settings.seriesText)
+      }
+
+      vm.bannerLabel = function () {
+        if (vm.state.rows.length > 0 && vm.state.totalLaps > 0) {
+          return ('Lap ' + vm.state.leaderLap + ' / ' + vm.state.totalLaps).toUpperCase()
         }
 
         if (vm.state.manualLapCount > 0) {
-          return 'Lap count ' + vm.state.manualLapCount
+          return ('Race ' + vm.state.manualLapCount + ' Laps').toUpperCase()
         }
 
-        return 'Waiting for race'
+        return 'ScriptAI Timing'
       }
 
       vm.sourceLabel = function () {
-        return vm.state.rows.length > 0 ? 'ScriptAI' : 'No ScriptAI Data'
+        return vm.state.rows.length > 0 ? 'Live' : 'Standby'
+      }
+
+      vm.displayName = function (name) {
+        return String(name || '').toUpperCase()
+      }
+
+      vm.formatPosition = function (position) {
+        var numericPosition = parseInteger(position)
+        if (numericPosition === null) {
+          return '--'
+        }
+
+        return numericPosition < 10 ? '0' + numericPosition : String(numericPosition)
       }
 
       vm.jumpToVehicle = function (vehId) {
@@ -109,6 +199,19 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         bngApi.engineLua(
           'local obj = scenetree.findObject(' + numericVehId + '); if obj and be and be.enterVehicle then be:enterVehicle(0, obj) end'
+        )
+      }
+
+      function requestSavedUiConfig() {
+        bngApi.engineLua(
+          '(function() if not extensions.raceTickerScriptAI then extensions.load("raceTickerScriptAI") end return extensions.raceTickerScriptAI and extensions.raceTickerScriptAI.getUiConfig and extensions.raceTickerScriptAI.getUiConfig() or nil end)()',
+          function (config) {
+            $scope.$evalAsync(function () {
+              applyUiConfig(config)
+              persistUiConfig()
+              vm.refresh()
+            })
+          }
         )
       }
 
@@ -344,6 +447,107 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return parts.join(' ')
       }
 
+      function applyUiConfig(config) {
+        if (!config || typeof config !== 'object') {
+          return
+        }
+
+        vm.settings.showFuel = !!config.showFuel
+        vm.settings.showLapsDown = !!config.showLapsDown
+        vm.settings.uiScale = getUiScaleOption(config.uiScale).value
+        vm.settings.seriesText = sanitizeSeriesText(config.seriesText)
+
+        var manualLapCount = parseInteger(config.manualLapCount)
+        if (manualLapCount !== null) {
+          vm.state.manualLapCount = Math.max(manualLapCount, 0)
+        }
+      }
+
+      function buildUiConfigSnapshot() {
+        return {
+          showFuel: !!vm.settings.showFuel,
+          showLapsDown: !!vm.settings.showLapsDown,
+          uiScale: getUiScaleOption(vm.settings.uiScale).value,
+          seriesText: sanitizeSeriesText(vm.settings.seriesText),
+          manualLapCount: Math.max(parseInteger(vm.state.manualLapCount) || 0, 0)
+        }
+      }
+
+      function persistUiConfig(options) {
+        var snapshot = buildUiConfigSnapshot()
+        applyUiConfig(snapshot)
+        writeLocalUiConfig(snapshot)
+
+        if (options && options.skipLua) {
+          return
+        }
+
+        bngApi.engineLua(
+          'if not extensions.raceTickerScriptAI then extensions.load("raceTickerScriptAI") end if extensions.raceTickerScriptAI and extensions.raceTickerScriptAI.saveUiConfig then extensions.raceTickerScriptAI.saveUiConfig(' + bngApi.serializeToLua(snapshot) + ') end'
+        )
+      }
+
+      function readLocalUiConfig() {
+        try {
+          var rawValue = localStorage.getItem(UI_CONFIG_STORAGE_KEY)
+          if (!rawValue) {
+            return null
+          }
+
+          return JSON.parse(rawValue)
+        } catch (error) {
+          return null
+        }
+      }
+
+      function writeLocalUiConfig(config) {
+        try {
+          localStorage.setItem(UI_CONFIG_STORAGE_KEY, JSON.stringify(config))
+        } catch (error) {
+          return null
+        }
+
+        return true
+      }
+
+      function sanitizeSeriesText(value) {
+        var text = String(value || '')
+        text = text.replace(/\s+/g, ' ').trim()
+        if (!text) {
+          return DEFAULT_SERIES_TEXT
+        }
+
+        return text.slice(0, 24)
+      }
+
+      function getUiScaleIndex(scale) {
+        var targetValue = getUiScaleOption(scale).value
+        for (var index = 0; index < UI_SCALE_OPTIONS.length; index++) {
+          if (UI_SCALE_OPTIONS[index].value === targetValue) {
+            return index
+          }
+        }
+
+        return 3
+      }
+
+      function getUiScaleOption(scale) {
+        var numericScale = toNumber(scale, 1)
+        var bestOption = UI_SCALE_OPTIONS[0]
+        var bestDistance = Math.abs(numericScale - bestOption.value)
+
+        for (var index = 1; index < UI_SCALE_OPTIONS.length; index++) {
+          var option = UI_SCALE_OPTIONS[index]
+          var distance = Math.abs(numericScale - option.value)
+          if (distance < bestDistance) {
+            bestOption = option
+            bestDistance = distance
+          }
+        }
+
+        return bestOption
+      }
+
       function normalizeLuaObject(value) {
         return value && typeof value === 'object' ? value : {}
       }
@@ -383,9 +587,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return numericValue.toFixed(1)
       }
 
-      function finishRefresh(applyState) {
+      function finishRefresh(applyStateCallback) {
         $scope.$evalAsync(function () {
-          applyState()
+          applyStateCallback()
           vm.loading = false
         })
       }

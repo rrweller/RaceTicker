@@ -1,231 +1,802 @@
 <style>
+  .bngApp.race-ticker,
   .race-ticker {
+    --rt-bg-top: rgba(24, 25, 31, 0.97);
+    --rt-bg-mid: rgba(16, 17, 23, 0.96);
+    --rt-bg-low: rgba(9, 10, 15, 0.93);
+    --rt-row: rgba(27, 28, 36, 0.96);
+    --rt-row-alt: rgba(19, 20, 27, 0.94);
+    --rt-row-focus: rgba(49, 50, 60, 0.99);
+    --rt-row-focus-alt: rgba(34, 35, 44, 0.98);
+    --rt-warning: rgba(60, 31, 36, 0.97);
+    --rt-warning-alt: rgba(37, 20, 24, 0.95);
+    --rt-border: rgba(255, 255, 255, 0.11);
+    --rt-soft: rgba(255, 255, 255, 0.64);
+    --rt-hard: #f3f4f7;
+    --rt-accent: #e2870d;
+    --rt-accent-rgb: 226, 135, 13;
+    --rt-accent-deep: #9f5f08;
+    --rt-warning-rgb: 239, 74, 74;
+    --rt-player-rgb: 110, 151, 255;
+    --rt-fuel: #f4d24f;
+    --rt-shadow: rgba(0, 0, 0, 0.42);
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0 !important;
+    box-sizing: border-box;
+    color: var(--rt-hard);
+    font-family: "Bahnschrift Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+
+  .race-ticker .viewport {
+    width: min(calc(100% - 8px), 384px);
+    height: calc(100% - 16px);
+    margin: 8px 0 8px 8px;
+  }
+
+  .race-ticker .scale-wrap {
+    width: 100%;
+    height: 100%;
+    transform-origin: top left;
+    transition: transform 180ms ease, width 180ms ease, height 180ms ease;
+    will-change: transform;
+  }
+
+  .race-ticker .shell {
+    position: relative;
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: #ffffff;
-    background: rgba(8, 10, 12, 0.28);
+    border-radius: 22px;
+    border: 0;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
+      linear-gradient(180deg, var(--rt-bg-top) 0%, var(--rt-bg-mid) 16%, var(--rt-bg-low) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
   }
+
+  .race-ticker .shell::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: linear-gradient(180deg, #ffbc4f 0%, var(--rt-accent) 58%, var(--rt-accent-deep) 100%);
+  }
+
+  .race-ticker .shell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 26%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 28%);
+    opacity: 0.92;
+  }
+
   .race-ticker .header {
-    min-height: 42px;
-    border: 3px solid #ffffff;
-    background: url(/ui/modules/apps/RaceTicker/topbar.png) center center / cover no-repeat;
+    position: relative;
+    z-index: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 4px 10px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 14px 8px 18px;
     box-sizing: border-box;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent),
+      linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.10), transparent 42%);
   }
-  .race-ticker .header-title {
-    font-size: 22px;
-    font-weight: 700;
-    line-height: 1;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.9);
+
+  .race-ticker .brand {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
   }
-  .race-ticker .header-phase {
-    font-size: 11px;
-    margin-top: 2px;
-    opacity: 0.88;
-    letter-spacing: 0.08em;
+
+  .race-ticker .brand-logo {
+    width: 42px;
+    height: 42px;
+    display: block;
+    flex-shrink: 0;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.24));
+  }
+
+  .race-ticker .brand-copy {
+    min-width: 0;
+  }
+
+  .race-ticker .brand-title {
+    font-size: 30px;
+    line-height: 0.88;
+    letter-spacing: 0.05em;
+    font-weight: 800;
     text-transform: uppercase;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
   }
-  .race-ticker .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    min-height: 34px;
-    padding: 5px 8px;
-    box-sizing: border-box;
-    background: rgba(0, 0, 0, 0.56);
-    border: 1px solid #ffffff;
-  }
-  .race-ticker .lap-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-right: 4px;
-  }
-  .race-ticker .lap-button {
-    border-radius: 1px;
-    color: #ffffff;
+
+  .race-ticker .brand-subtitle {
+    margin-top: 6px;
     font-size: 14px;
-    background: #d98934;
-    padding: 3px 7px;
-    border: 1px solid #ffffff;
-    cursor: pointer;
+    line-height: 1;
+    letter-spacing: 0.18em;
+    font-style: italic;
+    font-weight: 400;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
   }
-  .race-ticker .lap-button[disabled] {
-    opacity: 0.42;
-    cursor: default;
+
+  .race-ticker .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
   }
-  .race-ticker .lap-label {
-    font-size: 13px;
-    min-width: 92px;
-    white-space: nowrap;
-  }
-  .race-ticker .toggle {
+
+  .race-ticker .status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .race-ticker .toggle input {
-    margin: 0;
-  }
-  .race-ticker .source {
-    margin-left: auto;
-    font-size: 11px;
-    opacity: 0.82;
+    justify-content: center;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
+    white-space: nowrap;
+    box-sizing: border-box;
   }
-  .race-ticker .list {
+
+  .race-ticker .status-badge.is-live {
+    color: #ffffff;
+    border-color: rgba(var(--rt-accent-rgb), 0.40);
+    background: linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.24), rgba(255, 255, 255, 0.05));
+  }
+
+  .race-ticker .config-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+    color: #ffffff;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  }
+
+  .race-ticker .config-toggle:hover,
+  .race-ticker .config-toggle.is-open {
+    transform: translateY(-1px);
+    border-color: rgba(var(--rt-accent-rgb), 0.48);
+    background: linear-gradient(180deg, rgba(255, 210, 142, 0.22), rgba(var(--rt-accent-rgb), 0.12));
+    box-shadow: 0 10px 18px rgba(var(--rt-accent-rgb), 0.16);
+  }
+
+  .race-ticker .session-strip {
+    position: relative;
+    z-index: 1;
+    padding: 8px 18px 4px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background:
+      linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.10), transparent 40%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+    color: rgba(255, 255, 255, 1);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .race-ticker .config-panel {
+    position: relative;
+    z-index: 1;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition:
+      max-height 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 180ms ease,
+      transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .race-ticker .config-panel.is-open {
+    max-height: 420px;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .race-ticker .config-card {
+    margin: 10px 12px 10px 18px;
+    padding: 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 18%),
+      linear-gradient(180deg, rgba(19, 20, 25, 0.95), rgba(12, 13, 18, 0.95));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .race-ticker .config-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 0;
+  }
+
+  .race-ticker .config-row + .config-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .race-ticker .config-copy {
+    min-width: 0;
+  }
+
+  .race-ticker .config-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .race-ticker .config-hint {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.25;
+    color: var(--rt-soft);
+  }
+
+  .race-ticker .stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .race-ticker .stepper-button,
+  .race-ticker .seg-button,
+  .race-ticker .toggle-chip {
+    border: 0;
+    cursor: pointer;
+    color: #ffffff;
+    transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  }
+
+  .race-ticker .stepper-button {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  .race-ticker .stepper-button:hover,
+  .race-ticker .seg-button:hover,
+  .race-ticker .toggle-chip:hover {
+    transform: translateY(-1px);
+  }
+
+  .race-ticker .stepper-value {
+    min-width: 50px;
+    padding: 6px 10px 4px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    text-align: center;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  .race-ticker .stepper-value.is-scale {
+    min-width: 60px;
+  }
+
+  .race-ticker .segmented {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    gap: 4px;
+  }
+
+  .race-ticker .seg-button,
+  .race-ticker .toggle-chip {
+    padding: 8px 10px 6px;
+    border-radius: 10px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.66);
+  }
+
+  .race-ticker .seg-button.is-active,
+  .race-ticker .toggle-chip.is-on {
+    background: linear-gradient(180deg, rgba(255, 211, 145, 0.26), rgba(var(--rt-accent-rgb), 0.14));
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(var(--rt-accent-rgb), 0.28);
+  }
+
+  .race-ticker .text-input {
+    width: 118px;
+    padding: 8px 10px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  }
+
+  .race-ticker .text-input::placeholder {
+    color: rgba(255, 255, 255, 0.40);
+  }
+
+  .race-ticker .text-input:focus {
+    border-color: rgba(var(--rt-accent-rgb), 0.42);
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 0 0 1px rgba(var(--rt-accent-rgb), 0.16);
+  }
+
+  .race-ticker .board {
+    position: relative;
+    z-index: 1;
     flex: 1;
     overflow-x: hidden;
     overflow-y: auto;
-    padding-top: 4px;
+    padding: 8px 10px 10px 18px;
     box-sizing: border-box;
   }
-  .race-ticker .row {
+
+  .race-ticker .board::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .race-ticker .board::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .race-ticker .board-row {
+    position: relative;
     width: 100%;
-    min-height: 34px;
+    min-height: 54px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    box-sizing: border-box;
-    background: url(/ui/modules/apps/RaceTicker/carbar.png) center center / cover no-repeat;
-    border: 0;
+    gap: 10px;
+    padding: 9px 14px 9px 18px;
+    margin-top: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 18px;
+    overflow: hidden;
     color: #ffffff;
     text-align: left;
     cursor: pointer;
+    box-sizing: border-box;
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03), transparent 26%),
+      linear-gradient(180deg, var(--rt-row), var(--rt-row-alt));
+    box-shadow:
+      0 10px 22px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease;
   }
-  .race-ticker .row + .row {
-    margin-top: 4px;
+
+  .race-ticker .board-row:first-child {
+    margin-top: 0;
   }
-  .race-ticker .row.is-focus {
-    font-weight: 700;
-    font-style: italic;
+
+  .race-ticker .board-row:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 14px 24px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
-  .race-ticker .row.is-warning .name {
-    color: #ff5c38;
+
+  .race-ticker .board-row.is-leader {
+    border-color: rgba(var(--rt-accent-rgb), 0.16);
+    background:
+      linear-gradient(90deg, rgba(var(--rt-accent-rgb), 0.16), transparent 38%),
+      linear-gradient(180deg, rgba(37, 34, 28, 0.98), rgba(21, 20, 18, 0.96));
   }
+
+  .race-ticker .board-row.is-focus {
+    border-color: rgba(255, 255, 255, 0.16);
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.11), transparent 34%),
+      linear-gradient(180deg, var(--rt-row-focus), var(--rt-row-focus-alt));
+    box-shadow:
+      0 16px 26px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .race-ticker .board-row.is-leader.is-focus {
+    background:
+      linear-gradient(90deg, rgba(255, 223, 178, 0.22), rgba(255, 255, 255, 0.08) 24%, transparent 48%),
+      linear-gradient(180deg, rgba(56, 51, 44, 0.99), rgba(36, 33, 28, 0.97));
+  }
+
+  .race-ticker .board-row.is-warning {
+    border-color: rgba(var(--rt-warning-rgb), 0.18);
+    background:
+      linear-gradient(90deg, rgba(var(--rt-warning-rgb), 0.16), transparent 38%),
+      linear-gradient(180deg, var(--rt-warning), var(--rt-warning-alt));
+  }
+
+  .race-ticker .board-row.is-warning.is-focus {
+    background:
+      linear-gradient(90deg, rgba(255, 164, 164, 0.24), rgba(255, 255, 255, 0.06) 24%, transparent 48%),
+      linear-gradient(180deg, rgba(73, 44, 49, 0.98), rgba(42, 25, 29, 0.96));
+  }
+
+  .race-ticker .row-accent {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 6px;
+    border-radius: 18px 0 0 18px;
+    background: linear-gradient(180deg, rgba(184, 187, 197, 0.76), rgba(62, 65, 76, 0.34));
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .race-ticker .board-row.is-leader .row-accent {
+    background: linear-gradient(180deg, #ffd08b, var(--rt-accent) 58%, var(--rt-accent-deep));
+  }
+
+  .race-ticker .board-row.is-warning .row-accent {
+    background: linear-gradient(180deg, rgba(255, 158, 158, 0.94), rgba(190, 55, 61, 0.80));
+  }
+
+  .race-ticker .position-shell,
+  .race-ticker .identity,
+  .race-ticker .timing {
+    position: relative;
+    z-index: 1;
+  }
+
+  .race-ticker .position-shell {
+    width: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .race-ticker .position {
-    width: 18px;
-    font-size: 20px;
-    font-style: italic;
+    min-width: 32px;
+    padding: 7px 0 5px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.92);
     text-align: center;
-    color: #111111;
-    text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff;
+    font-size: 17px;
+    line-height: 1;
+    font-weight: 800;
+    font-style: italic;
+    transform: skew(-12deg);
   }
-  .race-ticker .main {
+
+  .race-ticker .board-row.is-leader .position {
+    background: linear-gradient(180deg, rgba(255, 214, 149, 0.36), rgba(var(--rt-accent-rgb), 0.18));
+  }
+
+  .race-ticker .board-row.is-warning .position {
+    background: linear-gradient(180deg, rgba(255, 177, 177, 0.26), rgba(var(--rt-warning-rgb), 0.14));
+  }
+
+  .race-ticker .identity {
     min-width: 0;
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
   }
+
   .race-ticker .name {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #ffffff;
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
   }
-  .race-ticker .gap {
+
+  .race-ticker .meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 0;
+    flex-shrink: 0;
+  }
+
+  .race-ticker .meta-pill {
+    padding: 4px 6px 4px;
+    border-radius: 100px;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+  }
+
+  .race-ticker .meta-pill.is-player {
+    background: rgba(var(--rt-player-rgb), 0.26);
+    color: #e0ebff;
+    box-shadow: inset 0 0 0 1px rgba(var(--rt-player-rgb), 0.34);
+  }
+
+  .race-ticker .meta-pill.is-warning {
+    background: rgba(var(--rt-warning-rgb), 0.26);
+    color: #ffe1e2;
+    box-shadow: inset 0 0 0 1px rgba(255, 147, 147, 0.30);
+  }
+
+  .race-ticker .timing {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
     margin-left: auto;
-    color: #ff5c38;
+    text-align: right;
+  }
+
+  .race-ticker .gap {
+    font-size: 16px;
+    line-height: 1;
     font-weight: 700;
     font-style: italic;
+    letter-spacing: 0.03em;
+    color: rgba(255, 255, 255, 0.94);
     white-space: nowrap;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
   }
-  .race-ticker .gap.is-leader {
-    color: #3fb0ff;
-  }
-  .race-ticker .fuel {
+
+  .race-ticker .fuel-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-left: 8px;
-    color: #f8e36d;
+    gap: 5px;
+    padding: 5px 8px 4px;
+    border-radius: 999px;
+    background: rgba(244, 210, 79, 0.12);
+    color: var(--rt-fuel);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     white-space: nowrap;
   }
-  .race-ticker .fuel img {
-    width: 20px;
-    height: 20px;
+
+  .race-ticker .fuel-pill img {
+    width: 13px;
+    height: 13px;
     display: block;
+    filter: saturate(1.1);
   }
-  .race-ticker .empty {
+
+  .race-ticker .empty-state {
+    position: relative;
+    z-index: 1;
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    padding: 12px;
+    padding: 18px;
     box-sizing: border-box;
-    border: 1px solid #ffffff;
-    background: rgba(0, 0, 0, 0.45);
-    font-size: 14px;
-    line-height: 1.4;
+  }
+
+  .race-ticker .empty-card {
+    width: 100%;
+    padding: 20px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
+      linear-gradient(180deg, rgba(21, 22, 28, 0.94), rgba(13, 14, 19, 0.94));
+    text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .race-ticker .empty-title {
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .race-ticker .empty-copy {
+    margin-top: 9px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--rt-soft);
   }
 </style>
 
 <div class="bngApp race-ticker">
-  <div class="header">
-    <div>
-      <div class="header-title">AIT AI Race Leaderboard</div>
-      <div class="header-phase" ng-if="raceTicker.state.phase">{{ raceTicker.state.phase }}</div>
+  <div class="viewport">
+    <div class="scale-wrap" ng-style="raceTicker.scaleStyle()">
+      <div class="shell">
+        <div class="header">
+          <div class="brand">
+            <img class="brand-logo" ng-src="/ui/modules/apps/RaceTicker/AIT.png" alt="AIT">
+            <div class="brand-copy">
+              <div class="brand-title">AIT</div>
+              <div class="brand-subtitle">{{ raceTicker.seriesLabel() }}</div>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <div class="status-badge" ng-class="{ 'is-live': raceTicker.state.rows.length > 0 }">
+              {{ raceTicker.sourceLabel() }}
+            </div>
+            <button
+              type="button"
+              class="config-toggle"
+              ng-class="{ 'is-open': raceTicker.ui.settingsOpen }"
+              ng-click="raceTicker.toggleSettings()">CFG</button>
+          </div>
+        </div>
+
+        <div class="session-strip">{{ raceTicker.bannerLabel() }}</div>
+
+        <div class="config-panel" ng-class="{ 'is-open': raceTicker.ui.settingsOpen }">
+          <div class="config-card">
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">Series Name</div>
+                <div class="config-hint">Shown under AIT at the top of the tower</div>
+              </div>
+              <input
+                type="text"
+                class="text-input"
+                maxlength="24"
+                placeholder="RACE"
+                ng-model="raceTicker.settings.seriesText"
+                ng-model-options="{ debounce: 150 }"
+                ng-change="raceTicker.persistUiConfig()">
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">Race Length</div>
+                <div class="config-hint">Manual lap count for the ScriptAI route</div>
+              </div>
+              <div class="stepper">
+                <button type="button" class="stepper-button" ng-click="raceTicker.decrementManualLaps()">-</button>
+                <div class="stepper-value">{{ raceTicker.state.manualLapCount || 0 }}</div>
+                <button type="button" class="stepper-button" ng-click="raceTicker.incrementManualLaps()">+</button>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">UI Scale</div>
+                <div class="config-hint">Choose one of the saved tower sizes</div>
+              </div>
+              <div class="stepper">
+                <button type="button" class="stepper-button" ng-click="raceTicker.decrementScale()">-</button>
+                <div class="stepper-value is-scale">{{ raceTicker.scaleLabel() }}</div>
+                <button type="button" class="stepper-button" ng-click="raceTicker.incrementScale()">+</button>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">Fuel Column</div>
+                <div class="config-hint">Show remaining fuel beside each car</div>
+              </div>
+              <button
+                type="button"
+                class="toggle-chip"
+                ng-class="{ 'is-on': raceTicker.settings.showFuel }"
+                ng-click="raceTicker.setFuelVisible(!raceTicker.settings.showFuel)">
+                {{ raceTicker.settings.showFuel ? 'On' : 'Off' }}
+              </button>
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
+                <div class="config-title">Leader Display</div>
+                <div class="config-hint">Choose laps completed or percent remaining</div>
+              </div>
+              <div class="segmented">
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': !raceTicker.settings.showLapsDown }"
+                  ng-click="raceTicker.setLeaderDisplayMode(false)">Percent</button>
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': raceTicker.settings.showLapsDown }"
+                  ng-click="raceTicker.setLeaderDisplayMode(true)">Laps</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="board" ng-if="raceTicker.state.rows.length">
+          <button
+            type="button"
+            class="board-row"
+            ng-repeat="row in raceTicker.state.rows track by row.vehId"
+            ng-class="{ 'is-leader': row.isLeader, 'is-focus': row.isPlayerFocus, 'is-warning': row.isWarning }"
+            ng-click="raceTicker.jumpToVehicle(row.vehId)">
+            <div class="row-accent"></div>
+            <div class="position-shell">
+              <div class="position">{{ raceTicker.formatPosition(row.position) }}</div>
+            </div>
+
+            <div class="identity">
+              <div class="name">{{ raceTicker.displayName(row.name) }}</div>
+              <div class="meta" ng-if="row.isPlayerFocus || row.isWarning">
+                <span class="meta-pill is-player" ng-if="row.isPlayerFocus">Live</span>
+                <span class="meta-pill is-warning" ng-if="row.isWarning">Off Line</span>
+              </div>
+            </div>
+
+            <div class="timing">
+              <div class="gap">{{ row.gapLabel }}</div>
+              <div class="fuel-pill" ng-if="raceTicker.settings.showFuel">
+                <img ng-src="/ui/modules/apps/RaceTicker/fuel.png" alt="">
+                <span>{{ row.fuelLabel }}</span>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <div class="empty-state" ng-if="!raceTicker.state.rows.length">
+          <div class="empty-card">
+            <div class="empty-title">ScriptAI Ready</div>
+            <div class="empty-copy">{{ raceTicker.state.statusText }}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <div class="toolbar">
-    <div class="lap-group">
-      <button
-        class="lap-button"
-        ng-click="raceTicker.decrementManualLaps()"
-        ng-disabled="raceTicker.usesOfficialLapCount()">-</button>
-      <div class="lap-label">{{ raceTicker.currentLapLabel() }}</div>
-      <button
-        class="lap-button"
-        ng-click="raceTicker.incrementManualLaps()"
-        ng-disabled="raceTicker.usesOfficialLapCount()">+</button>
-    </div>
-
-    <label class="toggle">
-      <input type="checkbox" ng-model="raceTicker.settings.showFuel" ng-change="raceTicker.refresh()">
-      <span>Fuel</span>
-    </label>
-
-    <label class="toggle">
-      <input type="checkbox" ng-model="raceTicker.settings.showLapsDown" ng-change="raceTicker.refresh()">
-      <span>{{ raceTicker.settings.showLapsDown ? 'Laps' : 'Gap' }}</span>
-    </label>
-
-    <div class="source">{{ raceTicker.sourceLabel() }}</div>
-  </div>
-
-  <div class="list" ng-if="raceTicker.state.rows.length">
-    <button
-      class="row"
-      ng-repeat="row in raceTicker.state.rows track by row.vehId"
-      ng-class="{ 'is-focus': row.isPlayerFocus, 'is-warning': row.isWarning }"
-      ng-click="raceTicker.jumpToVehicle(row.vehId)">
-      <div class="position">{{ row.position }}</div>
-      <div class="main">
-        <div class="name">{{ row.name }}</div>
-        <div class="gap" ng-class="{ 'is-leader': row.isLeader }">{{ row.gapLabel }}</div>
-      </div>
-      <div class="fuel" ng-if="raceTicker.settings.showFuel">
-        <img ng-src="/ui/modules/apps/RaceTicker/fuel.png" alt="">
-        <span>{{ row.fuelLabel }}</span>
-      </div>
-    </button>
-  </div>
-
-  <div class="empty" ng-if="!raceTicker.state.rows.length">{{ raceTicker.state.statusText }}</div>
 </div>

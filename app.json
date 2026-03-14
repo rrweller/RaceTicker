@@ -11,12 +11,12 @@
   "directive": "raceTicker",
   "category": "Gameplay",
   "css": {
-    "width": "400px",
-    "height": "800px",
+    "width": "500px",
+    "height": "720px",
     "top": "200px",
     "left": "200px",
-    "min-width": "320px",
-    "min-height": "260px"
+    "min-width": "400px",
+    "min-height": "400px"
   },
   "isAuxiliary": false,
   "interactive": "required",
