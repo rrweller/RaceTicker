@@ -187,17 +187,25 @@
 
             <div class="identity">
               <div class="name">{{ raceTicker.displayName(row.name) }}</div>
-              <div class="meta" ng-if="row.isWarning && !row.isOut">
-                <span class="meta-pill is-warning meta-icon meta-icon-warning" ng-if="row.isWarning && !row.isOut">
-                  <svg class="warning-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <path d="M12 2L1.8 20h20.4L12 2zm0 5.2c.7 0 1.2.6 1.2 1.3v5.1c0 .7-.5 1.2-1.2 1.2s-1.2-.5-1.2-1.2V8.5c0-.7.5-1.3 1.2-1.3zm0 11.1a1.35 1.35 0 110-2.7 1.35 1.35 0 010 2.7z"></path>
-                  </svg>
-                </span>
-              </div>
             </div>
 
             <div class="timing">
-              <div class="gap">{{ row.gapLabel }}</div>
+              <div class="timing-main">
+                <div class="meta" ng-if="(row.isWarning && !row.isOut) || (!!row.positionDeltaLabel && !row.isWarning && !row.isOut)">
+                  <span class="meta-pill is-warning meta-icon meta-icon-warning" ng-if="row.isWarning && !row.isOut">
+                    <svg class="warning-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M12 2L1.8 20h20.4L12 2zm0 5.2c.7 0 1.2.6 1.2 1.3v5.1c0 .7-.5 1.2-1.2 1.2s-1.2-.5-1.2-1.2V8.5c0-.7.5-1.3 1.2-1.3zm0 11.1a1.35 1.35 0 110-2.7 1.35 1.35 0 010 2.7z"></path>
+                    </svg>
+                  </span>
+                  <span
+                    class="meta-pill is-pos-delta"
+                    ng-class="row.positionDeltaClass"
+                    ng-if="!row.isWarning && !row.isOut && !!row.positionDeltaLabel">
+                    {{ row.positionDeltaLabel }}
+                  </span>
+                </div>
+                <div class="gap">{{ row.gapLabel }}</div>
+              </div>
               <div class="fuel-pill" ng-if="raceTicker.settings.showFuel">
                 <img ng-src="/ui/modules/apps/RaceTicker/fuel.png" alt="">
                 <span>{{ row.fuelLabel }}</span>

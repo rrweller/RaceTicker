@@ -108,6 +108,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         layoutLockUntilMs: 0,
         nextCheckMs: 0
       }
+      vm.positionDeltaState = {
+        baselineByVehId: {},
+        baselineCaptured: false
+      }
       vm.ui = {
         settingsOpen: false,
         scaleInput: '100'
@@ -316,20 +320,13 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return null
         }
 
-        var textColor = getBadgeTextColor(row.carColorRgb)
-        var textShadow = textColor.indexOf('15, 18, 28') !== -1
-          ? '0 1px 1px rgba(255, 255, 255, 0.28)'
-          : '0 1px 1px rgba(0, 0, 0, 0.38)'
-
         return {
           background:
             'linear-gradient(168deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 34%, rgba(255, 255, 255, 0.00) 56%), ' +
             'linear-gradient(180deg, rgba(0, 0, 0, 0.00), rgba(0, 0, 0, 0.20)), ' +
             'rgb(' + row.carColorRgb + ')',
           border: '1px solid rgba(255, 255, 255, 0.10)',
-          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.26), 0 1px 2px rgba(0, 0, 0, 0.12)',
-          color: textColor,
-          textShadow: textShadow
+          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.26), 0 1px 2px rgba(0, 0, 0, 0.12)'
         }
       }
 
@@ -590,6 +587,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           }
           row.isLeader = index === 0
         })
+        if (!pauseGapUpdates && rows.length > 0 && !vm.positionDeltaState.baselineCaptured) {
+          capturePositionDeltaBaseline(rows)
+        }
+        applyPositionDeltaLabels(rows)
 
         vm.state.totalLaps = totalLaps
         vm.state.leaderLap = leaderLap
@@ -636,13 +637,69 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           var leaderTimeBehind = Math.max(toNumber(leader.sortTime, 0) - toNumber(row.sortTime, 0), 0)
           var lapsBehindLeader = Math.floor(leaderTimeBehind / lapLength)
           if (lapsBehindLeader > 0) {
-            return '+' + lapsBehindLeader + ' ' + (lapsBehindLeader === 1 ? 'Lap' : 'Laps')
+            var displayedLapsBehind = Math.min(lapsBehindLeader, 9)
+            return '+' + displayedLapsBehind + ' ' + (displayedLapsBehind === 1 ? 'Lap' : 'Laps')
           }
         }
 
         var timeBehind = Math.max(toNumber(anchorRow.sortTime, 0) - toNumber(row.sortTime, 0), 0)
 
         return '+' + timeBehind.toFixed(2)
+      }
+
+      function resetPositionDeltaBaseline() {
+        vm.positionDeltaState.baselineByVehId = {}
+        vm.positionDeltaState.baselineCaptured = false
+      }
+
+      function capturePositionDeltaBaseline(rows) {
+        var baselineByVehId = {}
+        angular.forEach(rows || [], function (row) {
+          if (!row || row.vehId === undefined || row.vehId === null) {
+            return
+          }
+
+          baselineByVehId[row.vehId] = toNumber(row.position, 0)
+        })
+
+        vm.positionDeltaState.baselineByVehId = baselineByVehId
+        vm.positionDeltaState.baselineCaptured = true
+      }
+
+      function applyPositionDeltaLabels(rows) {
+        var baselineByVehId = vm.positionDeltaState.baselineByVehId || {}
+        var hasBaseline = !!vm.positionDeltaState.baselineCaptured
+
+        angular.forEach(rows || [], function (row) {
+          row.positionDeltaLabel = ''
+          row.positionDeltaClass = ''
+          if (!hasBaseline || !row || row.isOut || row.isWarning) {
+            return
+          }
+
+          var baselinePosition = toNumber(baselineByVehId[row.vehId], null)
+          if (baselinePosition === null) {
+            baselinePosition = toNumber(row.position, 0)
+            baselineByVehId[row.vehId] = baselinePosition
+          }
+
+          var currentPosition = toNumber(row.position, baselinePosition)
+          var delta = baselinePosition - currentPosition
+          if (delta > 0) {
+            row.positionDeltaClass = 'is-up'
+            row.positionDeltaLabel = '\u25B2 ' + delta
+            return
+          }
+
+          if (delta < 0) {
+            row.positionDeltaClass = 'is-down'
+            row.positionDeltaLabel = '\u25BC ' + Math.abs(delta)
+            return
+          }
+
+          row.positionDeltaClass = 'is-flat'
+          row.positionDeltaLabel = '- 0'
+        })
       }
 
       function updateOutState(entry, scriptTime, now) {
@@ -703,6 +760,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         if (isFreshStart || isRunReset) {
           vm.outSequenceCounter = 0
+          resetPositionDeltaBaseline()
           vm.orderState.startPauseUntilMs = now + START_REORDER_PAUSE_MS
           vm.orderState.candidateKey = ''
           vm.orderState.candidateSinceMs = 0
@@ -1410,24 +1468,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return red + ', ' + green + ', ' + blue
-      }
-
-      function getBadgeTextColor(rgbString) {
-        var parts = String(rgbString || '').split(',')
-        if (parts.length < 3) {
-          return 'rgba(248, 252, 255, 0.98)'
-        }
-
-        var red = toNumber(parts[0], 0)
-        var green = toNumber(parts[1], 0)
-        var blue = toNumber(parts[2], 0)
-        var luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722)
-
-        if (luminance >= 165) {
-          return 'rgba(15, 18, 28, 0.94)'
-        }
-
-        return 'rgba(248, 252, 255, 0.98)'
       }
 
       function simplifyVehicleName(rawName, vehId) {
