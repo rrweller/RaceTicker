@@ -7,6 +7,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
   var DEFAULT_USE_CSV_CAR_COLORS = true
   var APP_STYLESHEET_ID = 'raceTickerAppStylesheet'
   var APP_STYLESHEET_PATH = '/ui/modules/apps/RaceTicker/app.css'
+  var APP_REFRESH_INTERVAL_MS = 500
   var UI_SCALE_OPTIONS = [
     { label: '50%', value: 0.5 },
     { label: '66%', value: 2 / 3 },
@@ -29,7 +30,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
       var pollPromise = $interval(function () {
         ctrl.refresh()
-      }, 250)
+      }, APP_REFRESH_INTERVAL_MS)
 
       scope.$on('$destroy', function () {
         $interval.cancel(pollPromise)
@@ -62,7 +63,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       var OUT_GRACE_SECONDS = 15
       var OUT_PROGRESS_EPSILON = 0.2
       var OUT_SPEED_THRESHOLD = 2
-      var START_REORDER_PAUSE_MS = 2000
+      var START_REORDER_PAUSE_MS = 5000
       var START_RESET_MAX_LEADER_TIME = 3
       var START_RESET_DROP_THRESHOLD = 2
       var PASS_CHECK_INTERVAL_MS = 1000
@@ -315,18 +316,20 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return null
         }
 
-        var stateOverlay = ''
-        if (row.isOut || row.isWarning) {
-          stateOverlay = 'linear-gradient(180deg, rgba(255, 177, 177, 0.26), rgba(var(--rt-warning-rgb), 0.14)), '
-        } else if (row.isLeader) {
-          stateOverlay = 'linear-gradient(180deg, rgba(var(--rt-accent-rgb), 0.40), rgba(var(--rt-accent-rgb), 0.18)), '
-        }
+        var textColor = getBadgeTextColor(row.carColorRgb)
+        var textShadow = textColor.indexOf('15, 18, 28') !== -1
+          ? '0 1px 1px rgba(255, 255, 255, 0.28)'
+          : '0 1px 1px rgba(0, 0, 0, 0.38)'
 
         return {
           background:
-            stateOverlay +
-            'linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)), ' +
-            'linear-gradient(180deg, rgba(' + row.carColorRgb + ', 0.24), rgba(' + row.carColorRgb + ', 0.12))'
+            'linear-gradient(168deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 34%, rgba(255, 255, 255, 0.00) 56%), ' +
+            'linear-gradient(180deg, rgba(0, 0, 0, 0.00), rgba(0, 0, 0, 0.20)), ' +
+            'rgb(' + row.carColorRgb + ')',
+          border: '1px solid rgba(255, 255, 255, 0.10)',
+          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.26), 0 1px 2px rgba(0, 0, 0, 0.12)',
+          color: textColor,
+          textShadow: textShadow
         }
       }
 
@@ -387,6 +390,15 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var lineErrorTolerance = getLineErrorTolerance(vm.settings.lineErrorTolerance)
         var lineEnd = 0
         var seenVehIds = {}
+        var previousRowsByVehId = {}
+
+        angular.forEach(vm.state.rows || [], function (previousRow) {
+          if (!previousRow || previousRow.vehId === undefined || previousRow.vehId === null) {
+            return
+          }
+
+          previousRowsByVehId[previousRow.vehId] = previousRow
+        })
 
         updateCarColors(carColors)
 
@@ -553,7 +565,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           row.isWarning = row.crashed || row.jumped || row.stalled || row.isOut
         })
 
-        updateRunStartPause(rows, now)
+        var didStartPauseWindow = updateRunStartPause(rows, now)
+        if (didStartPauseWindow) {
+          previousRowsByVehId = {}
+        }
         var displayResolution = resolveDisplayRows(rows, now)
         rows = displayResolution.rows
 
@@ -562,12 +577,17 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var leaderTime = rows.length > 0 ? rows[0].sortTime : 0
         var leaderLap = lapLength > 0 ? clampLeaderLap(Math.floor(leaderTime / lapLength) + 1, totalLaps) : 0
 
+        var pauseGapUpdates = now < vm.orderState.startPauseUntilMs
         angular.forEach(rows, function (row, index) {
           row.position = index + 1
           row.carNumber = getVehicleNumber(row.vehId)
           row.carColorHex = getCarColorForNumber(row.carNumber)
           row.carColorRgb = hexColorToRgb(row.carColorHex)
-          row.gapLabel = buildGapLabel(rows, index, lapLength, totalLaps, lineEnd)
+          if (pauseGapUpdates && previousRowsByVehId[row.vehId] && previousRowsByVehId[row.vehId].gapLabel) {
+            row.gapLabel = previousRowsByVehId[row.vehId].gapLabel
+          } else {
+            row.gapLabel = buildGapLabel(rows, index, lapLength, totalLaps, lineEnd)
+          }
           row.isLeader = index === 0
         })
 
@@ -674,6 +694,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var previousLeaderSortTime = toNumber(vm.orderState.lastLeaderSortTime, null)
         var isFreshStart = hasRows && !vm.orderState.hadRows
         var isRunReset = false
+        var didStartPauseWindow = false
 
         if (hasRows && previousLeaderSortTime !== null && leaderSortTime !== null) {
           isRunReset = leaderSortTime <= START_RESET_MAX_LEADER_TIME &&
@@ -688,10 +709,12 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           vm.orderState.mismatchSinceMs = 0
           vm.orderState.cooldownUntilMs = 0
           vm.orderState.nextCheckMs = now + PASS_CHECK_INTERVAL_MS
+          didStartPauseWindow = true
         }
 
         vm.orderState.hadRows = hasRows
         vm.orderState.lastLeaderSortTime = hasRows ? leaderSortTime : null
+        return didStartPauseWindow
       }
 
       function resolveDisplayRows(canonicalRows, now) {
@@ -1387,6 +1410,24 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return red + ', ' + green + ', ' + blue
+      }
+
+      function getBadgeTextColor(rgbString) {
+        var parts = String(rgbString || '').split(',')
+        if (parts.length < 3) {
+          return 'rgba(248, 252, 255, 0.98)'
+        }
+
+        var red = toNumber(parts[0], 0)
+        var green = toNumber(parts[1], 0)
+        var blue = toNumber(parts[2], 0)
+        var luminance = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722)
+
+        if (luminance >= 165) {
+          return 'rgba(15, 18, 28, 0.94)'
+        }
+
+        return 'rgba(248, 252, 255, 0.98)'
       }
 
       function simplifyVehicleName(rawName, vehId) {
