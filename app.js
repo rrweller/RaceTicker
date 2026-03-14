@@ -3,6 +3,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
   var DEFAULT_SERIES_TEXT = 'RACE'
   var DEFAULT_SHOW_LAPS_DOWN = true
   var DEFAULT_RELATIVE_GAP = false
+  var APP_STYLESHEET_ID = 'raceTickerAppStylesheet'
+  var APP_STYLESHEET_PATH = '/ui/modules/apps/RaceTicker/app.css'
   var UI_SCALE_OPTIONS = [
     { label: '50%', value: 0.5 },
     { label: '66%', value: 2 / 3 },
@@ -19,6 +21,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
     scope: false,
     link: function (scope, element) {
       var ctrl = scope.raceTicker
+      refreshAppStylesheet()
       ctrl.bindRootElement(element[0])
       ctrl.initialLoad()
 
@@ -71,6 +74,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.nameRequests = {}
       vm.vehicleNames = {}
       vm.vehiclesById = {}
+      vm.outSequenceCounter = 0
       vm.jumpCounter = 0
       vm.rootElement = null
       vm.passAnimation = {
@@ -92,7 +96,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         layoutLockUntilMs: 0
       }
       vm.ui = {
-        settingsOpen: false
+        settingsOpen: false,
+        scaleInput: '100'
       }
       vm.lineErrorToleranceSteps = LINE_ERROR_TOLERANCE_OPTIONS.slice()
       vm.settings = {
@@ -192,8 +197,26 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         persistUiConfig()
       }
 
+      vm.onScaleInputKeydown = function ($event) {
+        if (!$event || $event.key !== 'Enter') {
+          return
+        }
+
+        vm.applyScaleInput()
+        if (typeof $event.preventDefault === 'function') {
+          $event.preventDefault()
+        }
+      }
+
+      vm.applyScaleInput = function () {
+        var parsedScale = parseUiScaleInput(vm.ui.scaleInput, vm.settings.uiScale)
+        vm.settings.uiScale = parsedScale
+        vm.ui.scaleInput = formatUiScaleInput(parsedScale)
+        persistUiConfig()
+      }
+
       vm.scaleLabel = function () {
-        return getUiScaleOption(vm.settings.uiScale).label
+        return formatUiScaleInput(vm.settings.uiScale) + '%'
       }
 
       vm.incrementLineErrorTolerance = function () {
@@ -227,7 +250,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       vm.scaleStyle = function () {
-        var scale = getUiScaleOption(vm.settings.uiScale).value
+        var scale = normalizeUiScale(vm.settings.uiScale)
         var style = {
           transform: 'scale(' + scale + ')'
         }
@@ -363,6 +386,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
               jumped: false,
               stalled: false,
               out: false,
+              outSequence: 0,
               scriptTimeAtSave: scriptTime,
               realTimeAtSave: now,
               stallScriptTimeAtSave: scriptTime,
@@ -383,6 +407,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             entry.jumped = false
             entry.stalled = false
             entry.out = false
+            entry.outSequence = 0
             entry.storedScriptTime = scriptTime
             entry.scriptTimeAtSave = scriptTime
             entry.realTimeAtSave = now
@@ -453,11 +478,24 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
             crashed: entry.crashed,
             jumped: entry.jumped,
             stalled: entry.stalled,
-            out: entry.out
+            out: entry.out,
+            outSequence: entry.outSequence
           })
         })
 
         rows.sort(function (left, right) {
+          if (!!left.out !== !!right.out) {
+            return left.out ? 1 : -1
+          }
+
+          if (left.out && right.out) {
+            if (left.outSequence !== right.outSequence) {
+              return right.outSequence - left.outSequence
+            }
+
+            return left.vehId - right.vehId
+          }
+
           if (left.sortTime !== right.sortTime) {
             return right.sortTime - left.sortTime
           }
@@ -484,6 +522,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
 
         angular.forEach(rows, function (row, index) {
           row.position = index + 1
+          row.carNumber = '000'
           row.gapLabel = buildGapLabel(rows, index, lapLength, totalLaps, lineEnd)
           row.isLeader = index === 0
         })
@@ -543,19 +582,24 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       function updateOutState(entry, scriptTime, now) {
+        if (entry.out) {
+          return
+        }
+
         var isCrashState = entry.crashed || entry.jumped
         var progressDelta = scriptTime - toNumber(entry.outScriptTimeAtSave, scriptTime)
         var noProgressDuration = (now - toNumber(entry.outRealTimeAtSave, now)) / 1000
         var isMoving = toNumber(entry.speed, 0) > OUT_SPEED_THRESHOLD
 
         if (!isCrashState || progressDelta > OUT_PROGRESS_EPSILON || isMoving) {
-          entry.out = false
           entry.outScriptTimeAtSave = scriptTime
           entry.outRealTimeAtSave = now
           return
         }
 
-        if (noProgressDuration >= OUT_GRACE_SECONDS) {
+        if (noProgressDuration >= OUT_GRACE_SECONDS && !entry.out) {
+          vm.outSequenceCounter = vm.outSequenceCounter + 1
+          entry.outSequence = vm.outSequenceCounter
           entry.out = true
         }
       }
@@ -593,6 +637,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         if (isFreshStart || isRunReset) {
+          vm.outSequenceCounter = 0
           vm.orderState.startPauseUntilMs = now + START_REORDER_PAUSE_MS
           vm.orderState.candidateKey = ''
           vm.orderState.candidateSinceMs = 0
@@ -1092,7 +1137,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.settings.showFuel = !!config.showFuel
         vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
         vm.settings.relativeGap = config.relativeGap === undefined ? DEFAULT_RELATIVE_GAP : !!config.relativeGap
-        vm.settings.uiScale = getUiScaleOption(config.uiScale).value
+        vm.settings.uiScale = normalizeUiScale(config.uiScale)
+        vm.ui.scaleInput = formatUiScaleInput(vm.settings.uiScale)
         vm.settings.seriesText = sanitizeSeriesText(config.seriesText, { allowEmpty: true })
         vm.settings.lineErrorTolerance = getLineErrorTolerance(config.lineErrorTolerance)
 
@@ -1107,7 +1153,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           showFuel: !!vm.settings.showFuel,
           showLapsDown: !!vm.settings.showLapsDown,
           relativeGap: !!vm.settings.relativeGap,
-          uiScale: getUiScaleOption(vm.settings.uiScale).value,
+          uiScale: normalizeUiScale(vm.settings.uiScale),
           seriesText: sanitizeSeriesText(vm.settings.seriesText, { allowEmpty: true }),
           lineErrorTolerance: getLineErrorTolerance(vm.settings.lineErrorTolerance),
           manualLapCount: Math.max(parseInteger(vm.state.manualLapCount) || 0, 0)
@@ -1179,7 +1225,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
 
       function getUiScaleOption(scale) {
-        var numericScale = toNumber(scale, 1)
+        var numericScale = normalizeUiScale(scale)
         var bestOption = UI_SCALE_OPTIONS[0]
         var bestDistance = Math.abs(numericScale - bestOption.value)
 
@@ -1193,6 +1239,42 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return bestOption
+      }
+
+      function normalizeUiScale(scale) {
+        var numericScale = toNumber(scale, 1)
+        if (!isFinite(numericScale) || numericScale <= 0) {
+          return 1
+        }
+
+        return numericScale
+      }
+
+      function parseUiScaleInput(inputValue, fallbackScale) {
+        var rawText = String(inputValue == null ? '' : inputValue).trim()
+        if (!rawText) {
+          return normalizeUiScale(fallbackScale)
+        }
+
+        var hasPercent = rawText.indexOf('%') !== -1
+        var numericValue = toNumber(rawText.replace(/%/g, ''), null)
+        if (numericValue === null || numericValue <= 0) {
+          return normalizeUiScale(fallbackScale)
+        }
+
+        if (hasPercent || numericValue >= 10) {
+          return numericValue / 100
+        }
+
+        return numericValue
+      }
+
+      function formatUiScaleInput(scale) {
+        var percentageValue = normalizeUiScale(scale) * 100
+        var roundedValue = Math.round(percentageValue * 100) / 100
+        return (Math.abs(roundedValue - Math.round(roundedValue)) < 0.0001)
+          ? String(Math.round(roundedValue))
+          : String(roundedValue)
       }
 
       function getLineErrorTolerance(value) {
@@ -1278,5 +1360,28 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       }
     },
     controllerAs: 'raceTicker'
+  }
+
+  function refreshAppStylesheet() {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    var head = document.head || document.getElementsByTagName('head')[0]
+    var link
+    if (!head) {
+      return
+    }
+
+    link = document.getElementById(APP_STYLESHEET_ID)
+    if (!link) {
+      link = document.createElement('link')
+      link.id = APP_STYLESHEET_ID
+      link.rel = 'stylesheet'
+      link.type = 'text/css'
+      head.appendChild(link)
+    }
+
+    link.href = APP_STYLESHEET_PATH + '?v=' + Date.now()
   }
 }])
