@@ -3,11 +3,14 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
   var DEFAULT_SERIES_TEXT = 'RACE'
   var DEFAULT_SHOW_LAPS_DOWN = true
   var DEFAULT_RELATIVE_GAP = false
+  var DEFAULT_TIMING_MODE = 'absolute'
   var DEFAULT_SHOW_CAR_NUMBER_BOXES = true
   var DEFAULT_USE_CSV_CAR_COLORS = true
   var APP_STYLESHEET_ID = 'raceTickerAppStylesheet'
   var APP_STYLESHEET_PATH = '/ui/modules/apps/RaceTicker/app.css'
+  var APP_HEARTBEAT_INTERVAL_MS = 50
   var APP_REFRESH_INTERVAL_MS = 500
+  var LAP_MODE_REFRESH_INTERVAL_MS = 50
   var UI_SCALE_OPTIONS = [
     { label: '50%', value: 0.5 },
     { label: '66%', value: 2 / 3 },
@@ -29,8 +32,8 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       ctrl.initialLoad()
 
       var pollPromise = $interval(function () {
-        ctrl.refresh()
-      }, APP_REFRESH_INTERVAL_MS)
+        ctrl.heartbeat()
+      }, APP_HEARTBEAT_INTERVAL_MS)
 
       scope.$on('$destroy', function () {
         $interval.cancel(pollPromise)
@@ -86,6 +89,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.vehiclesById = {}
       vm.outSequenceCounter = 0
       vm.jumpCounter = 0
+      vm.lastRefreshRequestedAt = 0
       vm.rootElement = null
       vm.passAnimation = {
         raf1: 0,
@@ -121,6 +125,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         showFuel: false,
         showLapsDown: DEFAULT_SHOW_LAPS_DOWN,
         relativeGap: DEFAULT_RELATIVE_GAP,
+        timingMode: DEFAULT_TIMING_MODE,
         showCarNumberBoxes: DEFAULT_SHOW_CAR_NUMBER_BOXES,
         useCsvCarColors: DEFAULT_USE_CSV_CAR_COLORS,
         uiScale: 1,
@@ -132,6 +137,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         leaderLap: 0,
         lineEnd: 0,
         rows: [],
+        lapModeHasLiveTimers: false,
         statusText: 'Start a ScriptAI line in Script AI Manager to populate the ticker.',
         manualLapCount: 0
       }
@@ -148,6 +154,19 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.rootElement = element || null
       }
 
+      vm.heartbeat = function () {
+        if (vm.loading) {
+          return
+        }
+
+        var now = Date.now()
+        if ((now - (vm.lastRefreshRequestedAt || 0)) < getRefreshIntervalMs()) {
+          return
+        }
+
+        vm.refresh()
+      }
+
       vm.disposeAnimationResources = function () {
         stopPassAnimations()
       }
@@ -158,6 +177,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         vm.loading = true
+        vm.lastRefreshRequestedAt = Date.now()
         bngApi.engineLua(
           '(function() if not extensions.raceTickerScriptAI then extensions.load("raceTickerScriptAI") end return extensions.raceTickerScriptAI and extensions.raceTickerScriptAI.getState and extensions.raceTickerScriptAI.getState() or {} end)()',
           function (payload) {
@@ -200,10 +220,20 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.refresh()
       }
 
-      vm.setGapDisplayMode = function (useRelativeGap) {
-        vm.settings.relativeGap = !!useRelativeGap
+      vm.setTimingMode = function (timingMode) {
+        var normalizedMode = normalizeTimingMode(timingMode, vm.settings.relativeGap)
+        vm.settings.timingMode = normalizedMode
+        if (normalizedMode === 'absolute' || normalizedMode === 'relative') {
+          vm.settings.relativeGap = normalizedMode === 'relative'
+        }
+
+        resetDisplayedOrderState()
         persistUiConfig()
         vm.refresh()
+      }
+
+      vm.setGapDisplayMode = function (useRelativeGap) {
+        vm.setTimingMode(useRelativeGap ? 'relative' : 'absolute')
       }
 
       vm.incrementScale = function () {
@@ -382,8 +412,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var scriptState = normalizeLuaObject(payload.scriptState)
         var fuelData = normalizeLuaObject(payload.fuelData)
         var speedData = normalizeLuaObject(payload.speedData)
+        var lapTiming = normalizeLuaObject(payload.lapTiming)
         var carColors = normalizeLuaObject(payload.carColors)
         var playerVehId = parseInteger(payload.playerVehId)
+        var timingMode = normalizeTimingMode(vm.settings.timingMode, vm.settings.relativeGap)
         var lineErrorTolerance = getLineErrorTolerance(vm.settings.lineErrorTolerance)
         var lineEnd = 0
         var seenVehIds = {}
@@ -520,6 +552,11 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           }
         })
 
+        if (isLapTimingMode(timingMode)) {
+          applyLapTimingState(lapTiming, fuelData, playerVehId)
+          return
+        }
+
         var rows = []
         angular.forEach(vm.vehiclesById, function (entry) {
           rows.push({
@@ -554,7 +591,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return left.vehId - right.vehId
         })
 
-        angular.forEach(rows, function (row, index) {
+        angular.forEach(rows, function (row) {
           row.name = getVehicleName(row.vehId)
           row.fuelLabel = formatFuelLabel(row.fuel)
           row.isPlayerFocus = playerVehId !== null && playerVehId === row.vehId
@@ -595,6 +632,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         vm.state.totalLaps = totalLaps
         vm.state.leaderLap = leaderLap
         vm.state.lineEnd = rows.length > 0 ? lineEnd : 0
+        vm.state.lapModeHasLiveTimers = false
         vm.state.rows = rows
         vm.state.statusText = rows.length > 0
           ? 'Select a row to jump to that car.'
@@ -603,6 +641,121 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         if (displayResolution.shouldAnimate && displayResolution.previousGeometry) {
           schedulePassAnimation(displayResolution.previousGeometry)
         }
+      }
+
+      function applyLapTimingState(lapTiming, fuelData, playerVehId) {
+        var rows = buildLapTimingRows(lapTiming, fuelData, playerVehId)
+        var totalLaps = Math.max(toNumber(vm.state.manualLapCount, 0), 0)
+        var leaderLap = Math.max(parseInteger(lapTiming.leaderLap) || 0, rows.length > 0 ? 1 : 0)
+
+        stopPassAnimations()
+        resetPositionDeltaBaseline()
+        syncDisplayedOrderState(rows)
+
+        vm.state.totalLaps = totalLaps
+        vm.state.leaderLap = totalLaps > 0 ? clampLeaderLap(leaderLap, totalLaps) : leaderLap
+        vm.state.lineEnd = 0
+        vm.state.lapModeHasLiveTimers = !!lapTiming.hasLiveTimers
+        vm.state.rows = rows
+        vm.state.statusText = rows.length > 0
+          ? 'Select a row to jump to that car.'
+          : 'Start a ScriptAI line in Script AI Manager to populate the ticker.'
+      }
+
+      function buildLapTimingRows(lapTiming, fuelData, playerVehId) {
+        var timingMode = normalizeTimingMode(vm.settings.timingMode, vm.settings.relativeGap)
+        var participants = normalizeLuaObject(lapTiming.participants)
+        var participantOrder = normalizeLuaArray(lapTiming.participantOrder)
+        var rows = []
+        var hasPostedLap = false
+
+        if (!participantOrder.length) {
+          angular.forEach(participants, function (value, key) {
+            var vehId = parseInteger(key)
+            if (vehId === null) {
+              return
+            }
+
+            participantOrder.push(vehId)
+          })
+          participantOrder.sort(function (left, right) {
+            return left - right
+          })
+        }
+
+        angular.forEach(participantOrder, function (rawVehId, baseOrder) {
+          var vehId = parseInteger(rawVehId)
+          if (vehId === null) {
+            return
+          }
+
+          ensureVehicleIdentity(vehId)
+
+          var lapEntry = participants[vehId] || participants[String(vehId)] || {}
+          var completedLaps = Math.max(parseInteger(lapEntry.completedLaps) || 0, 0)
+          var liveLapTime = Math.max(toNumber(lapEntry.currentLapTime, 0), 0)
+          var fixedLapTime = timingMode === 'bestLap'
+            ? toNumber(lapEntry.bestLapTime, toNumber(lapEntry.lastLapTime, null))
+            : toNumber(lapEntry.averageLapTime, toNumber(lapEntry.lastLapTime, null))
+          var hasCompletedLap = completedLaps > 0 && fixedLapTime !== null
+          var fuelValue = fuelData[vehId] !== undefined
+            ? fuelData[vehId]
+            : (vm.vehiclesById[vehId] ? vm.vehiclesById[vehId].fuel : null)
+          var displayLapTime = hasCompletedLap ? fixedLapTime : liveLapTime
+          var carNumber = getVehicleNumber(vehId)
+
+          if (hasCompletedLap) {
+            hasPostedLap = true
+          }
+
+          rows.push({
+            vehId: vehId,
+            name: getVehicleName(vehId),
+            fuel: fuelValue,
+            fuelLabel: formatFuelLabel(fuelValue),
+            carNumber: carNumber,
+            carColorHex: getCarColorForNumber(carNumber),
+            completedLaps: completedLaps,
+            hasCompletedLap: hasCompletedLap,
+            baseOrder: baseOrder,
+            sortMetric: hasCompletedLap ? fixedLapTime : null,
+            gapLabel: formatLapTime(displayLapTime),
+            isPlayerFocus: playerVehId !== null && playerVehId === vehId,
+            isOut: false,
+            isWarning: false,
+            positionDeltaLabel: '',
+            positionDeltaClass: ''
+          })
+        })
+
+        angular.forEach(rows, function (row) {
+          row.carColorRgb = hexColorToRgb(row.carColorHex)
+        })
+
+        if (hasPostedLap) {
+          rows.sort(function (left, right) {
+            if (!!left.hasCompletedLap !== !!right.hasCompletedLap) {
+              return left.hasCompletedLap ? -1 : 1
+            }
+
+            if (left.hasCompletedLap && right.hasCompletedLap && left.sortMetric !== right.sortMetric) {
+              return left.sortMetric - right.sortMetric
+            }
+
+            if (left.hasCompletedLap && right.hasCompletedLap && left.completedLaps !== right.completedLaps) {
+              return right.completedLaps - left.completedLaps
+            }
+
+            return left.baseOrder - right.baseOrder
+          })
+        }
+
+        angular.forEach(rows, function (row, index) {
+          row.position = index + 1
+          row.isLeader = index === 0
+        })
+
+        return rows
       }
 
       function buildGapLabel(rows, index, lapLength, totalLaps, lineEnd) {
@@ -700,6 +853,34 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           row.positionDeltaClass = 'is-flat'
           row.positionDeltaLabel = '- 0'
         })
+      }
+
+      function syncDisplayedOrderState(rows) {
+        vm.orderState.displayOrder = extractVehIds(rows)
+        vm.orderState.displayKey = buildOrderKey(rows)
+        vm.orderState.candidateKey = ''
+        vm.orderState.candidateSinceMs = 0
+        vm.orderState.mismatchSinceMs = 0
+        vm.orderState.startPauseUntilMs = 0
+        vm.orderState.cooldownUntilMs = 0
+        vm.orderState.nextCheckMs = Date.now() + PASS_CHECK_INTERVAL_MS
+        vm.orderState.hadRows = !!(rows && rows.length)
+        vm.orderState.lastLeaderSortTime = null
+      }
+
+      function resetDisplayedOrderState() {
+        stopPassAnimations()
+        vm.orderState.displayOrder = []
+        vm.orderState.displayKey = ''
+        vm.orderState.candidateKey = ''
+        vm.orderState.candidateSinceMs = 0
+        vm.orderState.mismatchSinceMs = 0
+        vm.orderState.startPauseUntilMs = 0
+        vm.orderState.cooldownUntilMs = 0
+        vm.orderState.layoutLockUntilMs = 0
+        vm.orderState.nextCheckMs = 0
+        vm.orderState.hadRows = false
+        vm.orderState.lastLeaderSortTime = null
       }
 
       function updateOutState(entry, scriptTime, now) {
@@ -1498,9 +1679,15 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           return
         }
 
+        var relativeGap = config.relativeGap === undefined ? DEFAULT_RELATIVE_GAP : !!config.relativeGap
+        var timingMode = normalizeTimingMode(config.timingMode, relativeGap)
+
         vm.settings.showFuel = !!config.showFuel
         vm.settings.showLapsDown = config.showLapsDown === undefined ? DEFAULT_SHOW_LAPS_DOWN : !!config.showLapsDown
-        vm.settings.relativeGap = config.relativeGap === undefined ? DEFAULT_RELATIVE_GAP : !!config.relativeGap
+        vm.settings.relativeGap = timingMode === 'absolute'
+          ? false
+          : (timingMode === 'relative' ? true : relativeGap)
+        vm.settings.timingMode = timingMode
         vm.settings.showCarNumberBoxes = config.showCarNumberBoxes === undefined ? DEFAULT_SHOW_CAR_NUMBER_BOXES : !!config.showCarNumberBoxes
         vm.settings.useCsvCarColors = config.useCsvCarColors === undefined ? DEFAULT_USE_CSV_CAR_COLORS : !!config.useCsvCarColors
         vm.settings.uiScale = normalizeUiScale(config.uiScale)
@@ -1519,6 +1706,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           showFuel: !!vm.settings.showFuel,
           showLapsDown: !!vm.settings.showLapsDown,
           relativeGap: !!vm.settings.relativeGap,
+          timingMode: normalizeTimingMode(vm.settings.timingMode, vm.settings.relativeGap),
           showCarNumberBoxes: !!vm.settings.showCarNumberBoxes,
           useCsvCarColors: !!vm.settings.useCsvCarColors,
           uiScale: normalizeUiScale(vm.settings.uiScale),
@@ -1685,6 +1873,53 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return value && typeof value === 'object' ? value : {}
       }
 
+      function normalizeLuaArray(value) {
+        if (Array.isArray(value)) {
+          return value.slice()
+        }
+
+        if (!value || typeof value !== 'object') {
+          return []
+        }
+
+        var indexedEntries = []
+        angular.forEach(value, function (entry, key) {
+          var numericKey = parseInteger(key)
+          if (numericKey === null) {
+            return
+          }
+
+          indexedEntries.push({
+            key: numericKey,
+            value: entry
+          })
+        })
+
+        indexedEntries.sort(function (left, right) {
+          return left.key - right.key
+        })
+
+        var normalizedArray = []
+        angular.forEach(indexedEntries, function (entry) {
+          normalizedArray.push(entry.value)
+        })
+
+        return normalizedArray
+      }
+
+      function normalizeTimingMode(mode, fallbackRelativeGap) {
+        var normalizedMode = String(mode || '').trim()
+        if (normalizedMode === 'absolute' || normalizedMode === 'relative' || normalizedMode === 'bestLap' || normalizedMode === 'averageLap') {
+          return normalizedMode
+        }
+
+        return fallbackRelativeGap ? 'relative' : DEFAULT_TIMING_MODE
+      }
+
+      function isLapTimingMode(mode) {
+        return mode === 'bestLap' || mode === 'averageLap'
+      }
+
       function parseInteger(value) {
         var numericValue = Number(value)
         if (!isFinite(numericValue)) {
@@ -1718,6 +1953,38 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         }
 
         return numericValue.toFixed(1)
+      }
+
+      function formatLapTime(value) {
+        var numericValue = toNumber(value, null)
+        if (numericValue === null) {
+          return '--'
+        }
+
+        numericValue = Math.max(numericValue, 0)
+        if (numericValue < 60) {
+          return numericValue.toFixed(2)
+        }
+
+        var minutes = Math.floor(numericValue / 60)
+        var seconds = (numericValue - (minutes * 60)).toFixed(2)
+        if (seconds < 10) {
+          seconds = '0' + seconds
+        }
+
+        return minutes + ':' + seconds
+      }
+
+      function getRefreshIntervalMs() {
+        if (!isLapTimingMode(normalizeTimingMode(vm.settings.timingMode, vm.settings.relativeGap))) {
+          return APP_REFRESH_INTERVAL_MS
+        }
+
+        if (!vm.state.rows.length || vm.state.lapModeHasLiveTimers) {
+          return LAP_MODE_REFRESH_INTERVAL_MS
+        }
+
+        return APP_REFRESH_INTERVAL_MS
       }
 
       function finishRefresh(applyStateCallback) {

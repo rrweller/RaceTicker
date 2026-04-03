@@ -1,4 +1,5 @@
 local M = {}
+local lapTiming = require('/lua/ge/extensions/raceTickerLapTiming')
 
 local uiConfigPath = "/settings/raceTicker.json"
 local carColorsCsvPath = "/settings/raceTicker_car_colors.csv"
@@ -11,6 +12,9 @@ local defaultShowLapsDown = true
 local defaultRelativeGap = false
 local defaultShowCarNumberBoxes = true
 local defaultUseCsvCarColors = true
+local defaultEnableRaceSplits = true
+local defaultTimingMode = "absolute"
+local defaultShowCheckpointDebug = false
 
 local scriptStateByVehId = {}
 local fuelByVehId = {}
@@ -67,6 +71,15 @@ local function sanitizeSeriesText(value)
   return text
 end
 
+local function sanitizeTimingMode(value)
+  local mode = tostring(value or defaultTimingMode)
+  if mode ~= "absolute" and mode ~= "relative" and mode ~= "bestLap" and mode ~= "averageLap" then
+    return defaultTimingMode
+  end
+
+  return mode
+end
+
 local function normalizeUiScale(value)
   local numericValue = tonumber(value) or 1
   local bestValue = uiScaleOptions[1]
@@ -103,17 +116,22 @@ end
 
 local function sanitizeUiConfig(config)
   local data = type(config) == "table" and config or {}
+  local timingMode = sanitizeTimingMode(data.timingMode or ((data.relativeGap and true or false) and "relative" or "absolute"))
+  local enableRaceSplits = true
 
   return {
     showFuel = data.showFuel and true or false,
     showLapsDown = data.showLapsDown == nil and defaultShowLapsDown or (data.showLapsDown and true or false),
-    relativeGap = data.relativeGap == nil and defaultRelativeGap or (data.relativeGap and true or false),
+    relativeGap = timingMode == "relative" or (timingMode ~= "absolute" and (data.relativeGap == nil and defaultRelativeGap or (data.relativeGap and true or false))),
     showCarNumberBoxes = data.showCarNumberBoxes == nil and defaultShowCarNumberBoxes or (data.showCarNumberBoxes and true or false),
     useCsvCarColors = data.useCsvCarColors == nil and defaultUseCsvCarColors or (data.useCsvCarColors and true or false),
     uiScale = normalizeUiScale(data.uiScale),
     seriesText = sanitizeSeriesText(data.seriesText),
     lineErrorTolerance = normalizeLineErrorTolerance(data.lineErrorTolerance),
-    manualLapCount = math.max(math.floor(tonumber(data.manualLapCount) or 0), 0)
+    manualLapCount = math.max(math.floor(tonumber(data.manualLapCount) or 0), 0),
+    enableRaceSplits = enableRaceSplits,
+    timingMode = timingMode,
+    showCheckpointDebug = data.showCheckpointDebug == nil and defaultShowCheckpointDebug or (data.showCheckpointDebug and true or false)
   }
 end
 
@@ -220,6 +238,10 @@ local function saveUiConfig(config)
   return copyTable(uiConfigCache)
 end
 
+local function shouldTrackLapTiming(config)
+  return true
+end
+
 local function touchVeh(vehId)
   local normalizedVehId = normalizeVehId(vehId)
   if not normalizedVehId then
@@ -304,6 +326,7 @@ local function getState()
   local scriptState = {}
   local fuelData = {}
   local speedData = {}
+  local uiConfig = getUiConfig()
 
   for vehId, data in pairs(scriptStateByVehId) do
     scriptState[vehId] = copyTable(data)
@@ -324,6 +347,7 @@ local function getState()
     carColors = copyTable(carColorsCache),
     carColorsCsvPath = carColorsCsvPath,
     playerVehId = be and be.getPlayerVehicleID and be:getPlayerVehicleID(0) or nil,
+    lapTiming = lapTiming.getState(uiConfig),
     timestamp = nowMs()
   }
 end
@@ -341,6 +365,10 @@ local function onUpdate(dtReal, dtSim, dtRaw)
   end
 
   pruneStale()
+  lapTiming.update(dtSim or 0, {
+    scriptStateByVehId = scriptStateByVehId,
+    enableRaceSplits = shouldTrackLapTiming()
+  })
 end
 
 M.onUpdate = onUpdate

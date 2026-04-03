@@ -455,6 +455,18 @@
     gap: 4px;
   }
 
+  .race-ticker .segmented.segmented-modes {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 196px;
+  }
+
+  .race-ticker .segmented.segmented-modes .seg-button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 84px;
+    text-align: center;
+  }
+
   .race-ticker .seg-button,
   .race-ticker .toggle-chip {
     padding: 8px 10px 6px;

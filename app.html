@@ -26,6 +26,35 @@
           <div class="config-card">
             <div class="config-row">
               <div class="config-copy">
+                <div class="config-title">Timing Mode</div>
+                <div class="config-hint">Best Lap and Average Lap enable RaceSplits checkpoint timing</div>
+              </div>
+              <div class="segmented segmented-modes">
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': raceTicker.settings.timingMode === 'absolute' }"
+                  ng-click="raceTicker.setTimingMode('absolute')">Absolute</button>
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': raceTicker.settings.timingMode === 'relative' }"
+                  ng-click="raceTicker.setTimingMode('relative')">Relative</button>
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': raceTicker.settings.timingMode === 'bestLap' }"
+                  ng-click="raceTicker.setTimingMode('bestLap')">Best Lap</button>
+                <button
+                  type="button"
+                  class="seg-button"
+                  ng-class="{ 'is-active': raceTicker.settings.timingMode === 'averageLap' }"
+                  ng-click="raceTicker.setTimingMode('averageLap')">Average</button>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-copy">
                 <div class="config-title">Series Name</div>
                 <div class="config-hint">Shown at the top of the tower</div>
               </div>
@@ -122,25 +151,6 @@
                   class="seg-button"
                   ng-class="{ 'is-active': raceTicker.settings.showLapsDown }"
                   ng-click="raceTicker.setLeaderDisplayMode(true)">Laps</button>
-              </div>
-            </div>
-
-            <div class="config-row">
-              <div class="config-copy">
-                <div class="config-title">Gap Timing</div>
-                <div class="config-hint">Absolute = to leader, Relative = to car ahead</div>
-              </div>
-              <div class="segmented">
-                <button
-                  type="button"
-                  class="seg-button"
-                  ng-class="{ 'is-active': !raceTicker.settings.relativeGap }"
-                  ng-click="raceTicker.setGapDisplayMode(false)">Absolute</button>
-                <button
-                  type="button"
-                  class="seg-button"
-                  ng-class="{ 'is-active': raceTicker.settings.relativeGap }"
-                  ng-click="raceTicker.setGapDisplayMode(true)">Relative</button>
               </div>
             </div>
 
