@@ -70,9 +70,7 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       var START_RESET_MAX_LEADER_TIME = 3
       var START_RESET_DROP_THRESHOLD = 2
       var PASS_CHECK_INTERVAL_MS = 1000
-      var PASS_STABLE_MS = 450
       var PASS_COOLDOWN_MS = 700
-      var PASS_FORCE_COMMIT_MS = 1400
       var LAYOUT_LOCK_MS = 360
       var PASS_ANIMATION_DURATION_MULTIPLIER = 1 / 0.67
       var PASS_ANIMATION_DURATION_MS = 440
@@ -93,7 +91,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
       vm.rootElement = null
       vm.passAnimation = {
         raf1: 0,
-        raf2: 0,
         active: [],
         ghosts: [],
         hiddenRows: {},
@@ -1162,34 +1159,9 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         return true
       }
 
-      function buildReorderCandidateKey(displayRows, canonicalRows) {
-        var maxLength = Math.max((displayRows || []).length, (canonicalRows || []).length)
-        var index
-
-        for (index = 0; index < maxLength; index++) {
-          var displayRow = displayRows[index]
-          var canonicalRow = canonicalRows[index]
-          var displayVehId = displayRow && displayRow.vehId !== undefined && displayRow.vehId !== null ? String(displayRow.vehId) : ''
-          var canonicalVehId = canonicalRow && canonicalRow.vehId !== undefined && canonicalRow.vehId !== null ? String(canonicalRow.vehId) : ''
-
-          if (displayVehId === canonicalVehId) {
-            continue
-          }
-
-          var displayNext = displayRows[index + 1]
-          var canonicalNext = canonicalRows[index + 1]
-          var displayNextVehId = displayNext && displayNext.vehId !== undefined && displayNext.vehId !== null ? String(displayNext.vehId) : ''
-          var canonicalNextVehId = canonicalNext && canonicalNext.vehId !== undefined && canonicalNext.vehId !== null ? String(canonicalNext.vehId) : ''
-          return index + ':' + canonicalVehId + ':' + displayVehId + ':' + canonicalNextVehId + ':' + displayNextVehId
-        }
-
-        return buildOrderKey(canonicalRows)
-      }
-
       function isPassAnimationBusy() {
         return !!(
           vm.passAnimation.raf1 ||
-          vm.passAnimation.raf2 ||
           (vm.passAnimation.active && vm.passAnimation.active.length) ||
           (vm.passAnimation.ghosts && vm.passAnimation.ghosts.length)
         )
@@ -1451,11 +1423,6 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
           vm.passAnimation.raf1 = 0
         }
 
-        if (typeof window !== 'undefined' && vm.passAnimation.raf2) {
-          window.cancelAnimationFrame(vm.passAnimation.raf2)
-          vm.passAnimation.raf2 = 0
-        }
-
         angular.forEach(vm.passAnimation.active, function (animation) {
           if (!animation || typeof animation.cancel !== 'function') {
             return
@@ -1570,7 +1537,10 @@ angular.module('beamng.apps').directive('raceTicker', ['$interval', function ($i
         var value = String(modFilename || '')
         value = value.replace(/\\/g, '/')
         value = value.replace(/^.*\//, '')
-        var match = value.match(/^(\d{1,3})-/)
+        var match = value.match(/^[^_-]+[-_](\d{1,3})(?=[-_])/)
+        if (!match) {
+          match = value.match(/^(\d{1,3})(?=[-_])/)
+        }
         if (!match) {
           return '000'
         }

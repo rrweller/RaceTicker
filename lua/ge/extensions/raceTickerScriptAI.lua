@@ -3,6 +3,12 @@ local lapTiming = require('/lua/ge/extensions/raceTickerLapTiming')
 
 local uiConfigPath = "/settings/raceTicker.json"
 local carColorsCsvPath = "/settings/raceTicker_car_colors.csv"
+local raceResultsCsvPaths = {
+  absolute = "/settings/raceTicker_results_absolute.csv",
+  relative = "/settings/raceTicker_results_relative.csv",
+  bestLap = "/settings/raceTicker_results_best_lap.csv",
+  averageLap = "/settings/raceTicker_results_average_lap.csv"
+}
 local uiScaleOptions = {0.5, 2 / 3, 0.75, 1, 1.25, 1.5}
 local lineErrorToleranceOptions = {2, 3, 4, 5, 6, 7, 8}
 local minLineErrorTolerance = 2
@@ -12,7 +18,6 @@ local defaultShowLapsDown = true
 local defaultRelativeGap = false
 local defaultShowCarNumberBoxes = true
 local defaultUseCsvCarColors = true
-local defaultEnableRaceSplits = true
 local defaultTimingMode = "absolute"
 local defaultShowCheckpointDebug = false
 
@@ -22,6 +27,13 @@ local speedByVehId = {}
 local lastSeenMsByVehId = {}
 local uiConfigCache = nil
 local carColorsCache = {}
+local vehicleNameCache = {}
+local runExportState = {
+  isActive = false,
+  lastFinishRows = {}
+}
+
+local getUiConfig
 
 local activeUntilMs = 0
 local lastPollMs = 0
@@ -139,6 +151,284 @@ local function trim(value)
   return tostring(value or ""):match("^%s*(.-)%s*$") or ""
 end
 
+local function csvEscape(value)
+  local text = tostring(value or "")
+  if text:find("[,\r\n\"]") then
+    text = "\"" .. text:gsub("\"", "\"\"") .. "\""
+  end
+
+  return text
+end
+
+local function writeResultsCsv(path, rows)
+  local lines = {"car,time"}
+  for _, row in ipairs(rows or {}) do
+    lines[#lines + 1] = csvEscape(row.name) .. "," .. csvEscape(row.time)
+  end
+
+  writeFile(path, table.concat(lines, "\n"))
+end
+
+local function formatLapTime(value)
+  local numericValue = tonumber(value)
+  if not numericValue then
+    return "--"
+  end
+
+  numericValue = math.max(numericValue, 0)
+  if numericValue < 60 then
+    return string.format("%.2f", numericValue)
+  end
+
+  local minutes = math.floor(numericValue / 60)
+  local seconds = numericValue - (minutes * 60)
+  return string.format("%d:%05.2f", minutes, seconds)
+end
+
+local function simplifyVehicleName(rawName, vehId)
+  local value = tostring(rawName or "")
+  value = value:gsub("\\", "/")
+  value = value:gsub("^.*/", "")
+  value = value:gsub("%.jbeam$", "")
+  value = value:gsub("[_-]+", " ")
+  value = value:gsub("%s+", " ")
+  value = trim(value)
+  if value == "" then
+    return "Vehicle " .. tostring(vehId)
+  end
+
+  local words = {}
+  for word in value:gmatch("%S+") do
+    words[#words + 1] = word:sub(1, 1):upper() .. word:sub(2)
+  end
+
+  return table.concat(words, " ")
+end
+
+local function resolveVehicleNameFromManager(vehId)
+  if not extensions or not extensions.core_vehicle_manager or not extensions.core_vehicle_manager.getVehicleData then
+    return nil
+  end
+
+  local ok, vehicleData = pcall(function()
+    return extensions.core_vehicle_manager.getVehicleData(vehId)
+  end)
+  if not ok or type(vehicleData) ~= "table" then
+    return nil
+  end
+
+  local vdata = type(vehicleData.vdata) == "table" and vehicleData.vdata or {}
+  local model = type(vdata.model) == "table" and vdata.model or {}
+  local config = type(vdata.config) == "table" and vdata.config or {}
+  local brand = trim(model.Brand)
+  local modelName = trim(model.Name)
+  local configName = trim(config.Name)
+  if brand ~= "" and modelName ~= "" then
+    return brand .. " " .. modelName
+  end
+
+  if modelName ~= "" then
+    return modelName
+  end
+
+  if configName ~= "" then
+    return configName
+  end
+
+  return nil
+end
+
+local function getVehicleDisplayName(vehId)
+  local normalizedVehId = normalizeVehId(vehId)
+  if not normalizedVehId then
+    return "Vehicle"
+  end
+
+  if vehicleNameCache[normalizedVehId] then
+    return vehicleNameCache[normalizedVehId]
+  end
+
+  local managerName = resolveVehicleNameFromManager(normalizedVehId)
+  if managerName and managerName ~= "" then
+    vehicleNameCache[normalizedVehId] = managerName
+    return managerName
+  end
+
+  local vehicle = getObjectByID(normalizedVehId) or scenetree.findObjectById(normalizedVehId)
+  if vehicle then
+    if vehicle.getJBeamFilename then
+      local okJbeam, jbeamName = pcall(function()
+        return vehicle:getJBeamFilename()
+      end)
+      if okJbeam and type(jbeamName) == "string" and jbeamName ~= "" then
+        local resolvedJbeamName = simplifyVehicleName(jbeamName, normalizedVehId)
+        vehicleNameCache[normalizedVehId] = resolvedJbeamName
+        return resolvedJbeamName
+      end
+    end
+
+    if vehicle.getName then
+      local okName, objectName = pcall(function()
+        return vehicle:getName()
+      end)
+      if okName and type(objectName) == "string" and objectName ~= "" then
+        local resolvedObjectName = simplifyVehicleName(objectName, normalizedVehId)
+        vehicleNameCache[normalizedVehId] = resolvedObjectName
+        return resolvedObjectName
+      end
+    end
+  end
+
+  local fallbackName = "Vehicle " .. tostring(normalizedVehId)
+  vehicleNameCache[normalizedVehId] = fallbackName
+  return fallbackName
+end
+
+local function buildActiveFinishRows()
+  local rows = {}
+
+  for vehId, data in pairs(scriptStateByVehId) do
+    local scriptTime = tonumber(data and data.scriptTime)
+    if type(data) == "table" and data.status == "following" and scriptTime then
+      rows[#rows + 1] = {
+        vehId = vehId,
+        scriptTime = scriptTime
+      }
+    end
+  end
+
+  table.sort(rows, function(left, right)
+    if left.scriptTime ~= right.scriptTime then
+      return left.scriptTime > right.scriptTime
+    end
+
+    return left.vehId < right.vehId
+  end)
+
+  return rows
+end
+
+local function buildAbsoluteCsvRows(finishRows)
+  local rows = {}
+  local leaderTime = finishRows[1] and finishRows[1].scriptTime or 0
+
+  for index, entry in ipairs(finishRows or {}) do
+    local timeLabel = index == 1 and "Leader" or ("+" .. string.format("%.2f", math.max(leaderTime - entry.scriptTime, 0)))
+    rows[#rows + 1] = {
+      name = getVehicleDisplayName(entry.vehId),
+      time = timeLabel
+    }
+  end
+
+  return rows
+end
+
+local function buildRelativeCsvRows(finishRows)
+  local rows = {}
+
+  for index, entry in ipairs(finishRows or {}) do
+    local timeLabel = "Leader"
+    if index > 1 then
+      local ahead = finishRows[index - 1]
+      local timeBehind = ahead and math.max((tonumber(ahead.scriptTime) or 0) - (tonumber(entry.scriptTime) or 0), 0) or 0
+      timeLabel = "+" .. string.format("%.2f", timeBehind)
+    end
+
+    rows[#rows + 1] = {
+      name = getVehicleDisplayName(entry.vehId),
+      time = timeLabel
+    }
+  end
+
+  return rows
+end
+
+local function buildLapModeCsvRows(lapState, modeKey)
+  local lapRows = {}
+  local vehicles = type(lapState) == "table" and lapState.vehicles or {}
+
+  for _, vehicle in ipairs(vehicles or {}) do
+    local vehId = normalizeVehId(vehicle.vehId)
+    if vehId then
+      local startOrdinal = math.max(math.floor(tonumber(vehicle.startOrdinal) or 0), 0)
+      local completedLapCount = math.max(math.floor(tonumber(vehicle.completedLapCount) or 0), 0)
+      local fixedLapTime = modeKey == "bestLap"
+        and tonumber(vehicle.bestLapTime)
+        or tonumber(vehicle.averageLapTime)
+      if not fixedLapTime then
+        fixedLapTime = tonumber(vehicle.lastLapTime)
+      end
+      local currentLapTime = tonumber(vehicle.currentLapTime) or 0
+      local hasCompletedLap = completedLapCount > 0 and fixedLapTime ~= nil
+      local displayTimeValue = hasCompletedLap and fixedLapTime or currentLapTime
+
+      lapRows[#lapRows + 1] = {
+        vehId = vehId,
+        startOrdinal = startOrdinal,
+        completedLapCount = completedLapCount,
+        hasCompletedLap = hasCompletedLap,
+        sortMetric = hasCompletedLap and fixedLapTime or nil,
+        displayTime = displayTimeValue
+      }
+    end
+  end
+
+  table.sort(lapRows, function(left, right)
+    if left.hasCompletedLap ~= right.hasCompletedLap then
+      return left.hasCompletedLap and not right.hasCompletedLap
+    end
+
+    if left.hasCompletedLap and right.hasCompletedLap and left.sortMetric ~= right.sortMetric then
+      return left.sortMetric < right.sortMetric
+    end
+
+    if left.hasCompletedLap and right.hasCompletedLap and left.completedLapCount ~= right.completedLapCount then
+      return left.completedLapCount > right.completedLapCount
+    end
+
+    if left.startOrdinal ~= right.startOrdinal then
+      return left.startOrdinal < right.startOrdinal
+    end
+
+    return left.vehId < right.vehId
+  end)
+
+  local csvRows = {}
+  for _, row in ipairs(lapRows) do
+    csvRows[#csvRows + 1] = {
+      name = getVehicleDisplayName(row.vehId),
+      time = formatLapTime(row.displayTime)
+    }
+  end
+
+  return csvRows
+end
+
+local function exportRunResultsToCsv(finishRows)
+  local activeFinishRows = finishRows or {}
+  local uiConfig = getUiConfig()
+  local lapState = lapTiming.getState(uiConfig)
+
+  writeResultsCsv(raceResultsCsvPaths.absolute, buildAbsoluteCsvRows(activeFinishRows))
+  writeResultsCsv(raceResultsCsvPaths.relative, buildRelativeCsvRows(activeFinishRows))
+  writeResultsCsv(raceResultsCsvPaths.bestLap, buildLapModeCsvRows(lapState, "bestLap"))
+  writeResultsCsv(raceResultsCsvPaths.averageLap, buildLapModeCsvRows(lapState, "averageLap"))
+end
+
+local function updateRunExportState(activeFinishRows)
+  if #activeFinishRows > 0 then
+    runExportState.isActive = true
+    runExportState.lastFinishRows = copyTable(activeFinishRows)
+    return
+  end
+
+  if runExportState.isActive then
+    exportRunResultsToCsv(runExportState.lastFinishRows or {})
+    runExportState.isActive = false
+    runExportState.lastFinishRows = {}
+  end
+end
+
 local function normalizeCarNumberKey(value)
   local numericValue = tonumber(value)
   if not numericValue then
@@ -224,7 +514,7 @@ local function refreshCarColors(force)
   carColorsCache = parseCarColorsCsv(readFile(carColorsCsvPath))
 end
 
-local function getUiConfig()
+getUiConfig = function()
   if uiConfigCache == nil then
     uiConfigCache = sanitizeUiConfig(jsonReadFile(uiConfigPath) or {})
   end
@@ -236,10 +526,6 @@ local function saveUiConfig(config)
   uiConfigCache = sanitizeUiConfig(config)
   jsonWriteFile(uiConfigPath, uiConfigCache, true)
   return copyTable(uiConfigCache)
-end
-
-local function shouldTrackLapTiming(config)
-  return true
 end
 
 local function touchVeh(vehId)
@@ -260,6 +546,7 @@ local function pruneStale()
       scriptStateByVehId[vehId] = nil
       fuelByVehId[vehId] = nil
       speedByVehId[vehId] = nil
+      vehicleNameCache[vehId] = nil
     end
   end
 end
@@ -364,11 +651,13 @@ local function onUpdate(dtReal, dtSim, dtRaw)
     pollVehicles()
   end
 
-  pruneStale()
+  local activeFinishRows = buildActiveFinishRows()
   lapTiming.update(dtSim or 0, {
     scriptStateByVehId = scriptStateByVehId,
-    enableRaceSplits = shouldTrackLapTiming()
+    enableRaceSplits = true
   })
+  updateRunExportState(activeFinishRows)
+  pruneStale()
 end
 
 M.onUpdate = onUpdate

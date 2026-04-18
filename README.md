@@ -1,51 +1,152 @@
-# RaceTicker (ScriptAI)
+# RaceTicker (ScriptAI + RaceSplits)
 
-RaceTicker is a BeamNG UI app for running ScriptAI race sessions with a clean, broadcast-style timing tower.
+RaceTicker is a BeamNG UI app that provides a broadcast-style timing tower for ScriptAI races.
 
-## Features
+The app supports 4 timing modes:
 
-- ScriptAI-only timing and race order display
-- Leader display mode: `Laps` or `% left`
-- Gap timing mode: `Absolute` (to leader) or `Relative` (to car ahead)
-- Fuel column toggle
-- Off-line / crash detection with `OUT` state
-- Position change indicator since race-start baseline (`▲`, `▼`, `- 0`)
-- Click a row to jump camera to that vehicle
-- Car number detection from mod zip filename (`###-name.zip`)
-- Optional per-car number color mapping from CSV
-- Persistent settings between maps and sessions
+1. `Absolute` (time behind leader)
+2. `Relative` (time behind car ahead)
+3. `Best Lap` (best completed checkpoint lap)
+4. `Average` (average of all completed checkpoint laps)
+
+RaceSplits lap timing is checkpoint-based and runs in parallel with ScriptAI timing, so you can switch modes during a run without losing lap timing state.
 
 ## Install
 
-1. Download the .zip from the Releases and place this mod in your BeamNG mods folder.
+1. Place/unpack this mod in your BeamNG mods folder.
 2. Enable the RaceTicker app in the UI app menu.
 3. Start your ScriptAI route/session.
 
-## Basic Usage
+## Quick Usage
 
-1. Spawn all race cars and start ScriptAI.
+1. Spawn all race cars and start a shared ScriptAI line.
 2. Open RaceTicker.
-3. Click any row to switch camera focus to that car.
+3. Use `CFG` -> `Timing Mode` to switch between `Absolute`, `Relative`, `Best Lap`, and `Average`.
+4. Click a row to jump camera focus to that vehicle.
 
-## Car Number Detection
+## Timing Modes
 
-RaceTicker extracts car numbers from the mod file name:
+### Absolute
 
-- Expected format: `###-carname.zip`
-- Examples:
-  - `69-keudn_car3_a.zip` -> `69`
-  - `420-keudn_car3_b.zip` -> `420`
-- If no valid prefix exists, RaceTicker uses `000`.
+- Uses ScriptAI progress time (`scriptTime`).
+- Sort order: highest progress to lowest.
+- Leader row shows `Leader` (or `% left`, depending on Leader Display setting).
+- Other rows show `+X.XX` to the leader.
 
-## CSV Car Colors
+### Relative
 
-CSV path:
+- Uses ScriptAI progress time.
+- Sort order: highest progress to lowest.
+- Leader row shows `Leader` (or `% left` with Leader Display setting).
+- Other rows show `+X.XX` to the car directly ahead.
+- If a car is lapped, gap switches to lap format (`+N Lap(s)`) capped at `+9 Laps`.
 
-`%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_car_colors.csv`
+### Best Lap
 
-The file is auto-created if missing.
+- Uses RaceSplits checkpoint lap timing.
+- Before a car completes lap 1: shows live current lap timer.
+- After first completed lap: shows fixed best lap, updates only on new best.
+- Rows are sorted by best lap (lower is better) once any lap is posted.
 
-CSV format:
+### Average
+
+- Uses RaceSplits checkpoint lap timing.
+- Before a car completes lap 1: shows live current lap timer.
+- After first completed lap: shows rolling average across all completed laps.
+- Rows are sorted by average lap (lower is better) once any lap is posted.
+
+## Lap Mode Rules (Best Lap / Average)
+
+- Position delta arrows are not shown.
+- During first lap, ordering stays at start order (no lap-time sorting yet).
+- As soon as lap results exist, sorting is by lap metric (best/average), with tie-breakers:
+1. completed-lap status (completed laps first)
+2. lap metric (lower is better)
+3. completed lap count (higher first)
+4. start order
+- Sorting is re-applied whenever mode is switched into a lap mode.
+
+## RaceSplits Checkpoint System
+
+RaceSplits does not use ScriptAI lap counters. It measures crossings against a generated checkpoint gate.
+
+### Gate creation
+
+- Trigger: ScriptAI run start/reset detection.
+- Source: first valid active ScriptAI recording path.
+- Gate center: recording start point (with `timeOffset` interpolation support).
+- Gate forward normal: direction of travel from recording.
+- Gate width is made robust by combining observed active car spread, road width estimate from map nodes, and safety padding with min/max clamps.
+
+### Crossing detection robustness
+
+For each vehicle, each update:
+
+- Uses previous and current world position segment.
+- Rejects teleports/large jumps.
+- Requires vehicle to re-arm by moving sufficiently behind gate first.
+- Requires proper direction alignment through gate normal.
+- Computes crossing time by segment interpolation (not coarse frame timestamping).
+- Enforces minimum lap time to reject false triggers.
+- Expands gate width when a valid crossing happens near gate edge.
+
+This makes checkpoint detection reliable even when cars do not drive exactly over the original ScriptAI start point.
+
+## ScriptAI + RaceSplits Running Together
+
+- ScriptAI timing and RaceSplits lap timing run concurrently.
+- Switching between `Absolute/Relative` and `Best Lap/Average` does not reset active lap tracking.
+- ScriptAI is used for run start/reset detection and initial checkpoint gate seeding from current recording data.
+- Lap crossing logic itself is calculated from live vehicle positions against the gate.
+
+## CSV Export on Run End
+
+When a ScriptAI run ends (active following set goes from non-empty to empty), RaceTicker writes 4 CSV files and overwrites the previous run outputs.
+
+Paths:
+
+- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_results_absolute.csv`
+- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_results_relative.csv`
+- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_results_best_lap.csv`
+- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_results_average_lap.csv`
+
+Format:
+
+- Header: `car,time`
+- Column 1: resolved car display name
+- Column 2: exactly what that mode displays (`Leader`, `+X.XX`, or lap time)
+
+Sorting used for export:
+
+- `absolute`: ScriptAI finish order
+- `relative`: ScriptAI finish order
+- `best_lap`: lap-mode order by best lap logic
+- `average_lap`: lap-mode order by average lap logic
+
+## Car Number and Color Logic
+
+### Car number extraction
+
+Car number extraction now uses:
+
+- Primary: `^[^_-]+[-_](\d{1,3})(?=[-_])` (number between the first and second `_`/`-`)
+- Fallback: `^(\d{1,3})(?=[-_])` (legacy filenames that start with the number)
+
+Examples:
+
+- `keudn_73_keudn_prebodywork.zip` -> `73`
+- `73-keudn_prebodywork.zip` -> `73`
+If no valid prefix is found, RaceTicker uses `000`.
+
+### Optional CSV car colors
+
+Path:
+
+- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_car_colors.csv`
+
+Auto-created if missing.
+
+Expected format:
 
 ```csv
 carnumber,color
@@ -57,46 +158,51 @@ carnumber,color
 
 Rules:
 
-- Header must be: `carnumber,color`
 - `carnumber` must be numeric
 - `color` accepts `#RRGGBB` or `#RGB`
 
 ## Config Panel Settings
 
-- `Series Name`: Top title text. Default is `RACE`.
-- `Race Length`: Manual lap count used for lap/percent calculations.
-- `UI Scale`: `+/-` steps through preset sizes, text input accepts any positive value.
-- `Off-Line Sensitivity`: Lower = stricter off-line detection, higher = more forgiving.
-- `Fuel Column`: Show/hide fuel info in each row.
-- `Leader Display`: `Laps` or `% left` for the leader label.
-- `Gap Timing`: `Absolute` (to leader) or `Relative` (to car ahead).
-- `Display Car Number`: Show/hide the number box.
-- `Display Car Color`: Use CSV-defined number-box colors.
+`Timing Mode` appears at the top of CFG and includes all 4 modes.
+There is no separate RaceSplits toggle in the UI.
 
-## Race Logic Notes
+- `Timing Mode`: `Absolute`, `Relative`, `Best Lap`, `Average`
+- `Series Name`: top title text (`RACE` default)
+- `Race Length`: manual lap count for lap banner and percent-left calculations
+- `UI Scale`: step buttons or direct numeric/percent entry
+- `Off-Line Sensitivity`: line error tolerance for warning/out logic
+- `Fuel Column`: show/hide fuel data
+- `Leader Display`: `Laps` or `% left` for leader label logic
+- `Display Car Number`: show/hide number box
+- `Display Car Color`: apply CSV color mapping
 
-- UI polling is every `0.5s`.
-- Position/split updates are paused for `5s` at race start to reduce spawn noise.
-- After that pause, RaceTicker captures a position baseline.
-- Position delta badge meanings:
-  - `▲ N` = gained positions since baseline
-  - `▼ N` = lost positions since baseline
-  - `- 0` = unchanged
-- Warning icon has priority over position delta badge.
-- `OUT` cars are dimmed and sorted to the bottom in wreck order until race reset.
-- In relative mode, lapped cars switch to lap-based gaps and are capped at `+9 Laps`.
+## Update Rates and Polling
+
+- UI heartbeat loop: `50 ms`
+- Default tower refresh: `500 ms`
+- Lap modes refresh at `50 ms` while first-lap live timers are active, otherwise `500 ms`
+- Vehicle data polling from Lua: `200 ms`
+
+Lap timing math still runs continuously in the Lua update loop; the `50 ms` rate only controls UI redraw frequency.
+
+## Additional Race Logic
+
+- Start reorder pause: `5s` to stabilize early race ordering.
+- Position baseline captured after pause for position delta labels (non-lap modes only).
+- Warning states include crash/jump/stall/out handling.
+- `OUT` cars are sorted to the bottom by out sequence.
 
 ## Persistence
 
-Settings are saved to:
+Settings are persisted to:
 
 - `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker.json`
 
-Car colors are read from:
+UI also caches a local copy in browser storage key:
 
-- `%LOCALAPPDATA%\BeamNG.drive\current\settings\raceTicker_car_colors.csv`
+- `apps:raceTicker.uiConfig`
 
-## Development Note
+## Development Notes
 
-BeamNG UI asset caching can prevent full hot-reload with `F5` for JS/CSS in some cases.
-If a change does not appear after `F5`, restart BeamNG.
+- BeamNG UI asset caching can prevent full hot-reload with `F5` for JS/CSS.
+- If a change does not appear after `F5`, restart BeamNG.
